@@ -296,7 +296,7 @@ function CustomEventForm({
 }
 
 const WHEEL_ITEM_H = 44
-const WHEEL_SIDE = 2
+const WHEEL_SIDE = 1
 
 function WheelPicker({
   value,
@@ -387,7 +387,7 @@ function WheelPicker({
           className="wph"
           ref={ref}
           onScroll={handleScroll}
-          style={{ height: '100%', overflowY: 'scroll', scrollbarWidth: 'none' } as React.CSSProperties}
+          style={{ height: '100%', overflowY: 'scroll', scrollbarWidth: 'none', overscrollBehavior: 'contain', touchAction: 'pan-y' } as React.CSSProperties}
         >
           {Array.from({ length: WHEEL_SIDE }, (_, i) => (
             <div key={`t${i}`} style={{ height: WHEEL_ITEM_H }} />
@@ -555,7 +555,7 @@ function RecordModal({
           borderRadius: '20px 20px 0 0',
           padding: '24px 20px 40px',
           width: '100%',
-          maxHeight: '90vh',
+          maxHeight: '92dvh',
           overflowY: 'auto',
         }}
         onClick={e => e.stopPropagation()}

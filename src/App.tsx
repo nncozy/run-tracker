@@ -46,7 +46,7 @@ function Avatar({ src, letter, size = 30 }: { src?: string | null; letter: strin
 function LoadingScreen() {
   return (
     <div style={{
-      background: theme.bg, minHeight: '100vh',
+      background: theme.bg, minHeight: '100dvh',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
       <div style={{ textAlign: 'center' }}>
@@ -107,7 +107,7 @@ function MainApp() {
   return (
     <div style={{
       background: theme.bg,
-      minHeight: '100vh',
+      minHeight: '100dvh',
       fontFamily: "'DM Sans', sans-serif",
       color: theme.text,
       maxWidth: 430,
@@ -130,6 +130,7 @@ function MainApp() {
         WebkitBackdropFilter: 'blur(12px)',
         borderBottom: `1px solid ${theme.border}`,
         padding: '12px 16px',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <button
