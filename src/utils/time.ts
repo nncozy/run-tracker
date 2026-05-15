@@ -42,6 +42,16 @@ export function formatDuration(seconds: number): string {
   return `${h}h${String(m).padStart(2, '0')}m`
 }
 
+export function formatRecordedAt(date: string, time?: string | null): string {
+  const [y, m, d] = date.split('-')
+  return time ? `${y}/${m}/${d} (${time})` : `${y}/${m}/${d}`
+}
+
 export function todayString(): string {
   return new Date().toISOString().slice(0, 10)
+}
+
+export function nowTimeString(): string {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }

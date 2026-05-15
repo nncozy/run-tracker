@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { theme } from '../theme'
-import { formatTime, todayString } from '../utils/time'
+import { formatTime, formatRecordedAt, todayString } from '../utils/time'
 import type { RunRecord, RunEvent, Room } from '../types/database'
 
 interface Props {
@@ -72,7 +72,7 @@ function RecordCard({
           letterSpacing: '-0.02em',
         }}>{formatTime(record.time_ms)}</div>
         <div style={{ color: theme.textDim, fontSize: 12, marginTop: 2 }}>
-          {record.recorded_at}
+          {formatRecordedAt(record.recorded_at, record.recorded_at_time)}
           {record.avg_heart_rate != null && (
             <span style={{ marginLeft: 10, color: theme.textMid }}>
               ♥ {record.avg_heart_rate} avg
@@ -310,23 +310,44 @@ function WheelPicker({
   label: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  const isUserScrolling = useRef(false)
+  const [displayVal, setDisplayVal] = useState(value)
+  const isScrollingUser = useRef(false)
   const snapTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const silentJump = useRef(false)
 
+  // Place in middle copy; skip if user is actively scrolling
   useEffect(() => {
-    if (!ref.current || isUserScrolling.current) return
-    ref.current.scrollTop = value * WHEEL_ITEM_H
-  }, [value])
+    if (!ref.current || isScrollingUser.current) return
+    ref.current.scrollTop = (value + count) * WHEEL_ITEM_H
+    setDisplayVal(value)
+  }, [value, count])
 
   function handleScroll() {
-    isUserScrolling.current = true
+    if (silentJump.current || !ref.current) return
+    isScrollingUser.current = true
+
+    const liveRaw = Math.round(ref.current.scrollTop / WHEEL_ITEM_H)
+    setDisplayVal(((liveRaw % count) + count) % count)
+
     clearTimeout(snapTimer.current)
     snapTimer.current = setTimeout(() => {
       if (!ref.current) return
-      const idx = Math.max(0, Math.min(count - 1, Math.round(ref.current.scrollTop / WHEEL_ITEM_H)))
-      ref.current.scrollTo({ top: idx * WHEEL_ITEM_H, behavior: 'smooth' })
-      onChange(idx)
-      setTimeout(() => { isUserScrolling.current = false }, 200)
+      const rawIdx = Math.round(ref.current.scrollTop / WHEEL_ITEM_H)
+      const val = ((rawIdx % count) + count) % count
+      const canonicalTop = (val + count) * WHEEL_ITEM_H
+
+      if (rawIdx < count || rawIdx >= 2 * count) {
+        // Silently teleport to middle copy, then no animation needed
+        silentJump.current = true
+        ref.current.scrollTop = canonicalTop
+        silentJump.current = false
+      } else {
+        ref.current.scrollTo({ top: canonicalTop, behavior: 'smooth' })
+      }
+
+      onChange(val)
+      setDisplayVal(val)
+      setTimeout(() => { isScrollingUser.current = false }, 200)
     }, 80)
   }
 
@@ -341,7 +362,6 @@ function WheelPicker({
         letterSpacing: '0.05em', marginBottom: 4,
       }}>{label}</div>
       <div style={{ position: 'relative', height: totalH, width: '100%' }}>
-        {/* selection highlight */}
         <div style={{
           position: 'absolute',
           top: WHEEL_SIDE * WHEEL_ITEM_H, left: 4, right: 4,
@@ -351,14 +371,12 @@ function WheelPicker({
           borderRadius: 10,
           pointerEvents: 'none', zIndex: 1,
         }} />
-        {/* top fade */}
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0,
           height: WHEEL_SIDE * WHEEL_ITEM_H,
           background: 'linear-gradient(to bottom, #150830 20%, rgba(21,8,48,0))',
           pointerEvents: 'none', zIndex: 2,
         }} />
-        {/* bottom fade */}
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
           height: WHEEL_SIDE * WHEEL_ITEM_H,
@@ -369,32 +387,32 @@ function WheelPicker({
           className="wph"
           ref={ref}
           onScroll={handleScroll}
-          style={{
-            height: '100%',
-            overflowY: 'scroll',
-            scrollbarWidth: 'none',
-          } as React.CSSProperties}
+          style={{ height: '100%', overflowY: 'scroll', scrollbarWidth: 'none' } as React.CSSProperties}
         >
           {Array.from({ length: WHEEL_SIDE }, (_, i) => (
             <div key={`t${i}`} style={{ height: WHEEL_ITEM_H }} />
           ))}
-          {Array.from({ length: count }, (_, i) => (
-            <div
-              key={i}
-              style={{
-                height: WHEEL_ITEM_H,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: i === value ? theme.accentBright : theme.textDim,
-                fontSize: i === value ? 28 : 20,
-                fontFamily: "'Barlow Condensed', sans-serif",
-                fontWeight: i === value ? 700 : 400,
-                cursor: 'pointer',
-                userSelect: 'none',
-              } as React.CSSProperties}
-            >
-              {String(i).padStart(2, '0')}
-            </div>
-          ))}
+          {[0, 1, 2].flatMap(copy =>
+            Array.from({ length: count }, (_, i) => {
+              const sel = i === displayVal
+              return (
+                <div
+                  key={`${copy}-${i}`}
+                  style={{
+                    height: WHEEL_ITEM_H,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: sel ? theme.accentBright : theme.textDim,
+                    fontSize: sel ? 28 : 20,
+                    fontFamily: "'Barlow Condensed', sans-serif",
+                    fontWeight: sel ? 700 : 400,
+                    userSelect: 'none',
+                  } as React.CSSProperties}
+                >
+                  {String(i).padStart(2, '0')}
+                </div>
+              )
+            })
+          )}
           {Array.from({ length: WHEEL_SIDE }, (_, i) => (
             <div key={`b${i}`} style={{ height: WHEEL_ITEM_H }} />
           ))}
@@ -431,6 +449,14 @@ function RecordModal({
   const [timeMinutes, setTimeMinutes] = useState(initial ? Math.floor((initial.time_ms % 3600000) / 60000) : 0)
   const [timeSeconds, setTimeSeconds] = useState(initial ? Math.floor(initial.time_ms / 1000) % 60 : 0)
   const [timeCs, setTimeCs] = useState(initial ? Math.floor((initial.time_ms % 1000) / 10) : 0)
+  const [recordHour, setRecordHour] = useState(() => {
+    if (initial?.recorded_at_time) return parseInt(initial.recorded_at_time.split(':')[0])
+    return new Date().getHours()
+  })
+  const [recordMin, setRecordMin] = useState(() => {
+    if (initial?.recorded_at_time) return parseInt(initial.recorded_at_time.split(':')[1])
+    return new Date().getMinutes()
+  })
   const [showCustomForm, setShowCustomForm] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -463,12 +489,15 @@ function RecordModal({
     setSaving(true)
     setError('')
 
+    const recordedAtTime = `${String(recordHour).padStart(2, '0')}:${String(recordMin).padStart(2, '0')}`
+
     const payload = {
       user_id: userId,
       room_id: roomId,
       event_id: form.eventId,
       time_ms: ms,
       recorded_at: form.recordedAt,
+      recorded_at_time: recordedAtTime,
       avg_heart_rate: form.avgHR ? parseInt(form.avgHR) : null,
       max_heart_rate: form.maxHR ? parseInt(form.maxHR) : null,
       comment: form.comment || null,
@@ -601,15 +630,20 @@ function RecordModal({
           </div>
         </div>
 
-        {/* Date */}
+        {/* Date + Time */}
         <div style={{ marginBottom: 14 }}>
-          <div style={labelStyle}>日付</div>
+          <div style={labelStyle}>日時</div>
           <input
             type="date"
             value={form.recordedAt}
             onChange={e => set('recordedAt', e.target.value)}
-            style={inputStyle}
+            style={{ ...inputStyle, marginBottom: 10 }}
           />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <WheelPicker value={recordHour} onChange={setRecordHour} count={24} label="時（h）" />
+            <div style={{ color: theme.textDim, fontSize: 20, fontWeight: 700, flexShrink: 0, paddingTop: 18, lineHeight: 1 }}>:</div>
+            <WheelPicker value={recordMin} onChange={setRecordMin} count={60} label="分（min）" />
+          </div>
         </div>
 
         {/* Heart rate row */}

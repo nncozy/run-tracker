@@ -38,6 +38,7 @@ export interface RunRecord {
   event_id: string
   time_ms: number
   recorded_at: string
+  recorded_at_time: string | null
   avg_heart_rate: number | null
   max_heart_rate: number | null
   comment: string | null
