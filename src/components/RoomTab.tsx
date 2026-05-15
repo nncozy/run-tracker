@@ -225,7 +225,7 @@ export function RoomTab({ currentRoom, onRoomChange, onRoomsLoaded }: Props) {
                       fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600,
                     }}
                   >
-                    {isActive ? 'アクティブ' : '選択'}
+                    {isActive ? 'このルームを表示中' : 'このルームに入る'}
                   </button>
                 </div>
 

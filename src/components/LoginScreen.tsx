@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { theme } from '../theme'
 import { useAuth } from '../contexts/AuthContext'
 
 export function LoginScreen() {
   const { signInWithGoogle } = useAuth()
+  const [showPrivacyDetails, setShowPrivacyDetails] = useState(false)
 
   return (
     <div style={{
@@ -70,7 +72,7 @@ export function LoginScreen() {
           color: theme.textDim,
           fontSize: 14,
           marginTop: 8,
-        }}>タイムアタック記録・仲間と比較</div>
+        }}>タイムやパフォーマンスを記録・仲間にシェア</div>
       </div>
 
       {/* Features */}
@@ -133,8 +135,47 @@ export function LoginScreen() {
         Googleでログイン
       </button>
 
+      <button
+        onClick={() => setShowPrivacyDetails((prev) => !prev)}
+        style={{
+          marginTop: 16,
+          background: 'transparent',
+          border: 'none',
+          color: theme.textMid,
+          fontSize: 12,
+          textDecoration: 'underline',
+          cursor: 'pointer',
+          padding: 0,
+        }}
+        aria-expanded={showPrivacyDetails}
+      >
+        {showPrivacyDetails ? 'データ利用の詳細を閉じる' : 'データ利用の詳細を見る'}
+      </button>
+
+      {showPrivacyDetails && (
+        <div style={{
+          marginTop: 12,
+          padding: 14,
+          background: theme.surface,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 14,
+          color: theme.textDim,
+          fontSize: 12,
+          lineHeight: 1.6,
+          textAlign: 'left',
+          maxWidth: 320,
+          width: '100%',
+        }}>
+          <p style={{ margin: 0 }}>
+            Googleアカウントは、ログイン認証とプロフィールの表示、
+            ランキング・記録同期のためだけに使われます。
+            それ以外の目的や第三者提供は行いません。
+          </p>
+        </div>
+      )}
+
       <p style={{ color: theme.textDim, fontSize: 12, marginTop: 24, textAlign: 'center' }}>
-        ログインすることで利用規約に同意したものとみなします
+        ログインにより必要データの利用に同意したものとみなします
       </p>
     </div>
   )

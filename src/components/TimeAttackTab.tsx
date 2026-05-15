@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { theme } from '../theme'
@@ -136,7 +136,6 @@ function RecordCard({
 
 interface FormState {
   eventId: string
-  timeInput: string
   recordedAt: string
   avgHR: string
   maxHR: string
@@ -296,6 +295,115 @@ function CustomEventForm({
   )
 }
 
+const WHEEL_ITEM_H = 44
+const WHEEL_SIDE = 2
+
+function WheelPicker({
+  value,
+  onChange,
+  count,
+  label,
+}: {
+  value: number
+  onChange: (v: number) => void
+  count: number
+  label: string
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const isUserScrolling = useRef(false)
+  const snapTimer = useRef<ReturnType<typeof setTimeout>>()
+
+  useEffect(() => {
+    if (!ref.current || isUserScrolling.current) return
+    ref.current.scrollTop = value * WHEEL_ITEM_H
+  }, [value])
+
+  function handleScroll() {
+    isUserScrolling.current = true
+    clearTimeout(snapTimer.current)
+    snapTimer.current = setTimeout(() => {
+      if (!ref.current) return
+      const idx = Math.max(0, Math.min(count - 1, Math.round(ref.current.scrollTop / WHEEL_ITEM_H)))
+      ref.current.scrollTo({ top: idx * WHEEL_ITEM_H, behavior: 'smooth' })
+      onChange(idx)
+      setTimeout(() => { isUserScrolling.current = false }, 200)
+    }, 80)
+  }
+
+  const totalH = (WHEEL_SIDE * 2 + 1) * WHEEL_ITEM_H
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <style>{`.wph::-webkit-scrollbar{display:none}`}</style>
+      <div style={{
+        color: theme.textDim, fontSize: 11,
+        fontFamily: "'Barlow Condensed', sans-serif",
+        letterSpacing: '0.05em', marginBottom: 4,
+      }}>{label}</div>
+      <div style={{ position: 'relative', height: totalH, width: '100%' }}>
+        {/* selection highlight */}
+        <div style={{
+          position: 'absolute',
+          top: WHEEL_SIDE * WHEEL_ITEM_H, left: 4, right: 4,
+          height: WHEEL_ITEM_H,
+          background: 'rgba(139,92,246,0.15)',
+          border: `1px solid ${theme.borderBright}`,
+          borderRadius: 10,
+          pointerEvents: 'none', zIndex: 1,
+        }} />
+        {/* top fade */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0,
+          height: WHEEL_SIDE * WHEEL_ITEM_H,
+          background: 'linear-gradient(to bottom, #150830 20%, rgba(21,8,48,0))',
+          pointerEvents: 'none', zIndex: 2,
+        }} />
+        {/* bottom fade */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          height: WHEEL_SIDE * WHEEL_ITEM_H,
+          background: 'linear-gradient(to top, #150830 20%, rgba(21,8,48,0))',
+          pointerEvents: 'none', zIndex: 2,
+        }} />
+        <div
+          className="wph"
+          ref={ref}
+          onScroll={handleScroll}
+          style={{
+            height: '100%',
+            overflowY: 'scroll',
+            scrollbarWidth: 'none',
+          } as React.CSSProperties}
+        >
+          {Array.from({ length: WHEEL_SIDE }, (_, i) => (
+            <div key={`t${i}`} style={{ height: WHEEL_ITEM_H }} />
+          ))}
+          {Array.from({ length: count }, (_, i) => (
+            <div
+              key={i}
+              style={{
+                height: WHEEL_ITEM_H,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: i === value ? theme.accentBright : theme.textDim,
+                fontSize: i === value ? 28 : 20,
+                fontFamily: "'Barlow Condensed', sans-serif",
+                fontWeight: i === value ? 700 : 400,
+                cursor: 'pointer',
+                userSelect: 'none',
+              } as React.CSSProperties}
+            >
+              {String(i).padStart(2, '0')}
+            </div>
+          ))}
+          {Array.from({ length: WHEEL_SIDE }, (_, i) => (
+            <div key={`b${i}`} style={{ height: WHEEL_ITEM_H }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function RecordModal({
   events: initialEvents,
   initial,
@@ -314,12 +422,14 @@ function RecordModal({
   const [events, setEvents] = useState<RunEvent[]>(initialEvents)
   const [form, setForm] = useState<FormState>({
     eventId: initial?.event_id ?? initialEvents[0]?.id ?? '',
-    timeInput: initial ? formatTime(initial.time_ms) : '',
     recordedAt: initial?.recorded_at ?? todayString(),
     avgHR: initial?.avg_heart_rate?.toString() ?? '',
     maxHR: initial?.max_heart_rate?.toString() ?? '',
     comment: initial?.comment ?? '',
   })
+  const [timeMinutes, setTimeMinutes] = useState(initial ? Math.floor(initial.time_ms / 60000) : 0)
+  const [timeSeconds, setTimeSeconds] = useState(initial ? Math.floor(initial.time_ms / 1000) % 60 : 0)
+  const [timeCs, setTimeCs] = useState(initial ? Math.floor((initial.time_ms % 1000) / 10) : 0)
   const [showCustomForm, setShowCustomForm] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -344,8 +454,8 @@ function RecordModal({
   }
 
   async function handleSave() {
-    const ms = parseTime(form.timeInput)
-    if (!ms) { setError('タイムの形式が正しくありません (例: 3:45.23)'); return }
+    const ms = timeMinutes * 60000 + timeSeconds * 1000 + timeCs * 10
+    if (ms <= 0) { setError('タイムを正しく入力してください'); return }
     if (!form.eventId) { setError('種目を選択してください'); return }
     if (!form.recordedAt) { setError('日付を入力してください'); return }
 
@@ -468,13 +578,19 @@ function RecordModal({
         {/* Time */}
         <div style={{ marginBottom: 14 }}>
           <div style={labelStyle}>タイム</div>
-          <input
-            type="text"
-            value={form.timeInput}
-            onChange={e => set('timeInput', e.target.value)}
-            placeholder="例: 3:45.23"
-            style={inputStyle}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <WheelPicker value={timeMinutes} onChange={setTimeMinutes} count={100} label="分" />
+            <div style={{
+              color: theme.textDim, fontSize: 24, fontWeight: 700,
+              flexShrink: 0, paddingTop: 20, lineHeight: 1,
+            }}>:</div>
+            <WheelPicker value={timeSeconds} onChange={setTimeSeconds} count={60} label="秒" />
+            <div style={{
+              color: theme.textDim, fontSize: 24, fontWeight: 700,
+              flexShrink: 0, paddingTop: 20, lineHeight: 1,
+            }}>.</div>
+            <WheelPicker value={timeCs} onChange={setTimeCs} count={100} label="1/100秒" />
+          </div>
         </div>
 
         {/* Date */}
