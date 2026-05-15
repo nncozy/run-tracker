@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { theme } from '../theme'
-import { formatTime, parseTime, todayString } from '../utils/time'
+import { formatTime, todayString } from '../utils/time'
 import type { RunRecord, RunEvent, Room } from '../types/database'
 
 interface Props {
@@ -311,7 +311,7 @@ function WheelPicker({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const isUserScrolling = useRef(false)
-  const snapTimer = useRef<ReturnType<typeof setTimeout>>()
+  const snapTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     if (!ref.current || isUserScrolling.current) return
