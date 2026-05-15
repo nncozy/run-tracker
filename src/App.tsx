@@ -72,6 +72,15 @@ function MainApp() {
   const [rooms, setRooms] = useState<Room[]>([])
   const [showRoomPicker, setShowRoomPicker] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [apiKeyCopied, setApiKeyCopied] = useState(false)
+
+  function copyApiKey() {
+    if (!profile?.api_key) return
+    navigator.clipboard.writeText(profile.api_key).then(() => {
+      setApiKeyCopied(true)
+      setTimeout(() => setApiKeyCopied(false), 2000)
+    })
+  }
 
   // Handle invite token: read from URL or sessionStorage (persisted across OAuth redirect)
   useEffect(() => {
@@ -225,8 +234,43 @@ function MainApp() {
             background: '#150830',
             border: `1px solid ${theme.borderBright}`,
             borderRadius: '0 0 0 12px',
-            zIndex: 16, overflow: 'hidden', minWidth: 140,
+            zIndex: 16, overflow: 'hidden', minWidth: 200,
           }}>
+            {profile?.api_key && (
+              <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.border}` }}>
+                <div style={{
+                  color: theme.textDim, fontSize: 10,
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  letterSpacing: '0.08em', marginBottom: 6,
+                }}>
+                  SHORTCUT API KEY
+                </div>
+                <div style={{
+                  color: theme.textMid, fontSize: 11,
+                  fontFamily: 'monospace',
+                  background: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: 6, padding: '4px 8px',
+                  marginBottom: 6,
+                  wordBreak: 'break-all',
+                }}>
+                  {profile.api_key}
+                </div>
+                <button
+                  onClick={copyApiKey}
+                  style={{
+                    width: '100%', background: apiKeyCopied ? theme.surfaceHigh : theme.surfaceMid,
+                    border: `1px solid ${theme.border}`,
+                    color: apiKeyCopied ? theme.accentBright : theme.textMid,
+                    borderRadius: 6, padding: '5px 0',
+                    fontSize: 12, cursor: 'pointer',
+                    fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600,
+                  }}
+                >
+                  {apiKeyCopied ? '✓ コピーしました' : 'APIキーをコピー'}
+                </button>
+              </div>
+            )}
             <button
               onClick={() => { signOut(); setShowSettings(false) }}
               style={{

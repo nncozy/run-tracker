@@ -2,6 +2,7 @@ export interface Profile {
   id: string
   display_name: string | null
   avatar_url: string | null
+  api_key: string | null
   created_at: string
 }
 
@@ -53,10 +54,22 @@ export interface HealthActivity {
   user_id: string
   external_id: string | null
   workout_date: string
+  start_time: string | null
   duration_seconds: number | null
   distance_meters: number | null
   avg_pace_sec_per_km: number | null
   avg_heart_rate: number | null
   max_heart_rate: number | null
+  avg_cadence: number | null
+  elevation_gain: number | null
+  calories_active: number | null
+  vo2max: number | null
+  hr_zone1_seconds: number | null
+  hr_zone2_seconds: number | null
+  hr_zone3_seconds: number | null
+  hr_zone4_seconds: number | null
+  hr_zone5_seconds: number | null
+  status: 'pending' | 'done' | 'skipped' | null
+  record_id: string | null
   synced_at: string
 }

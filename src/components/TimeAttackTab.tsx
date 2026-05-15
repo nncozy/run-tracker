@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { theme } from '../theme'
 import { formatTime, formatRecordedAt, todayString } from '../utils/time'
+import { WorkoutInbox } from './WorkoutInbox'
 import type { RunRecord, RunEvent, Room } from '../types/database'
 
 interface Props {
@@ -851,6 +852,16 @@ export function TimeAttackTab({ currentRoom }: Props) {
           }}
         >記録を追加</button>
       </div>
+
+      {/* Workout inbox */}
+      {user && (
+        <WorkoutInbox
+          userId={user.id}
+          events={events}
+          currentRoom={currentRoom}
+          onSaved={() => fetchRecords(true)}
+        />
+      )}
 
       {/* Sort toggle */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
