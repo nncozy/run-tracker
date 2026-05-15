@@ -119,34 +119,37 @@ export function RoomTab({ currentRoom, onRoomChange, onRoomsLoaded }: Props) {
     setJoining(true)
     setError('')
 
-    // Extract token from URL or use as-is
-    const token = joinToken.includes('token=')
-      ? new URL(joinToken).searchParams.get('token') ?? joinToken
-      : joinToken.trim()
-
-    const { data: room, error: findErr } = await supabase
-      .from('rooms')
-      .select('*')
-      .eq('invite_token', token)
-      .single()
-
-    if (findErr || !room) {
-      setError('招待リンクが見つかりません')
-      setJoining(false)
-      return
+    // URL形式とトークン単体の両方に対応
+    let token = joinToken.trim()
+    try {
+      if (token.includes('token=')) {
+        token = new URL(token).searchParams.get('token') ?? token
+      }
+    } catch {
+      // 無効なURLの場合はそのまま使用
     }
 
-    const { error: joinErr } = await supabase
-      .from('room_members')
-      .insert({ room_id: room.id, user_id: user.id, role: 'member' })
-
-    if (joinErr && !joinErr.message.includes('duplicate')) {
-      setError(joinErr.message)
-      setJoining(false)
-      return
-    }
+    const { data, error } = await supabase.rpc('join_room_by_token', { p_token: token })
 
     setJoining(false)
+
+    if (error) {
+      setError(error.message)
+      return
+    }
+    if (data?.error) {
+      setError(data.error)
+      return
+    }
+
+    const room: Room = {
+      id: data.room_id,
+      name: data.room_name,
+      invite_token: data.invite_token,
+      created_by: data.created_by,
+      created_at: data.created_at,
+    }
+
     setShowJoin(false)
     setJoinToken('')
     await fetchRooms()

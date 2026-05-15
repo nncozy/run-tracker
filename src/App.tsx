@@ -84,12 +84,17 @@ function MainApp() {
   }, [])
 
   async function handleInviteToken(token: string) {
-    const { data: room } = await supabase
-      .from('rooms')
-      .select('*')
-      .eq('invite_token', token)
-      .single()
-    if (room) {
+    const { data, error } = await supabase.rpc('join_room_by_token', { p_token: token })
+    if (!error && data && !data.error) {
+      const room: Room = {
+        id: data.room_id,
+        name: data.room_name,
+        invite_token: data.invite_token,
+        created_by: data.created_by,
+        created_at: data.created_at,
+      }
+      setCurrentRoom(room)
+      setRooms(prev => prev.some(r => r.id === room.id) ? prev : [...prev, room])
       setActiveTab('room')
     }
   }
