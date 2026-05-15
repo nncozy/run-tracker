@@ -73,30 +73,32 @@ function MainApp() {
   const [showRoomPicker, setShowRoomPicker] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
 
-  // Handle invite token in URL
+  // Handle invite token: read from URL or sessionStorage (persisted across OAuth redirect)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const token = params.get('token')
+    const urlToken = new URLSearchParams(window.location.search).get('token')
+    const storedToken = sessionStorage.getItem('pending_invite_token')
+    if (storedToken) sessionStorage.removeItem('pending_invite_token')
+
+    const token = urlToken ?? storedToken
     if (token) {
+      if (urlToken) window.history.replaceState({}, '', window.location.pathname)
       handleInviteToken(token)
-      window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])
 
   async function handleInviteToken(token: string) {
     const { data, error } = await supabase.rpc('join_room_by_token', { p_token: token })
-    if (!error && data && !data.error) {
-      const room: Room = {
-        id: data.room_id,
-        name: data.room_name,
-        invite_token: data.invite_token,
-        created_by: data.created_by,
-        created_at: data.created_at,
-      }
-      setCurrentRoom(room)
-      setRooms(prev => prev.some(r => r.id === room.id) ? prev : [...prev, room])
-      setActiveTab('room')
+    if (error || !data || data.error) return
+    const room: Room = {
+      id: data.room_id,
+      name: data.room_name,
+      invite_token: data.invite_token,
+      created_by: data.created_by,
+      created_at: data.created_at,
     }
+    setCurrentRoom(room)
+    setRooms(prev => prev.some(r => r.id === room.id) ? prev : [...prev, room])
+    setActiveTab('room')
   }
 
   const displayName = profile?.display_name ?? 'ユーザー'
@@ -309,6 +311,13 @@ function AppContent() {
 }
 
 export default function App() {
+  // Persist invite token to sessionStorage immediately on page load,
+  // before any OAuth redirect clears the query string.
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('token')
+    if (token) sessionStorage.setItem('pending_invite_token', token)
+  }, [])
+
   return (
     <AuthProvider>
       <link

@@ -114,20 +114,18 @@ export function RoomTab({ currentRoom, onRoomChange, onRoomsLoaded }: Props) {
     onRoomChange(room)
   }
 
+  function extractToken(input: string): string {
+    // Regex handles all URL formats (with/without protocol, hash, encoded chars)
+    const match = /[?&]token=([^&\s#]+)/.exec(input)
+    return match ? decodeURIComponent(match[1]) : input.trim()
+  }
+
   async function handleJoin() {
     if (!joinToken.trim() || !user) return
     setJoining(true)
     setError('')
 
-    // URL形式とトークン単体の両方に対応
-    let token = joinToken.trim()
-    try {
-      if (token.includes('token=')) {
-        token = new URL(token).searchParams.get('token') ?? token
-      }
-    } catch {
-      // 無効なURLの場合はそのまま使用
-    }
+    const token = extractToken(joinToken)
 
     const { data, error } = await supabase.rpc('join_room_by_token', { p_token: token })
 
