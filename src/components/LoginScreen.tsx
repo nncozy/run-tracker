@@ -2,9 +2,104 @@ import { useState } from 'react'
 import { theme } from '../theme'
 import { useAuth } from '../contexts/AuthContext'
 
+function isInAppBrowser(): boolean {
+  const ua = navigator.userAgent
+  if (/Android/.test(ua) && /; wv\)/.test(ua)) return true
+  if (/FBAN|FBAV|Instagram|Twitter|Line\/|LinkedIn|Snapchat|Pinterest|GSA\//.test(ua)) return true
+  if (/iPhone|iPad|iPod/.test(ua) && /AppleWebKit/.test(ua) && !/Safari/.test(ua)) return true
+  return false
+}
+
+function WebViewBlock() {
+  const url = window.location.href
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
+  const isAndroid = /Android/.test(navigator.userAgent)
+
+  function openInBrowser() {
+    if (isIOS) {
+      window.location.href = `x-safari-${url}`
+    } else {
+      window.location.href = `intent://${url.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`
+    }
+  }
+
+  return (
+    <div style={{
+      background: theme.bg, minHeight: '100dvh',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      padding: '32px 24px', fontFamily: "'DM Sans', sans-serif",
+    }}>
+      <div style={{ fontSize: 56, marginBottom: 24 }}>🔒</div>
+      <div style={{
+        color: theme.text, fontSize: 20, fontWeight: 700,
+        fontFamily: "'Barlow Condensed', sans-serif",
+        textAlign: 'center', marginBottom: 12,
+      }}>
+        アプリ内ブラウザではログインできません
+      </div>
+      <div style={{
+        color: theme.textMid, fontSize: 14, textAlign: 'center',
+        lineHeight: 1.7, marginBottom: 32, maxWidth: 300,
+      }}>
+        Googleのポリシーにより、{isIOS ? 'Safari' : 'Chrome'}などの
+        ブラウザからログインする必要があります。
+      </div>
+
+      <button
+        onClick={openInBrowser}
+        style={{
+          width: '100%', maxWidth: 300,
+          background: `linear-gradient(135deg, ${theme.accentDeep}, ${theme.accent})`,
+          border: 'none', borderRadius: 14,
+          color: '#fff', padding: '14px 0',
+          fontSize: 15, fontWeight: 600,
+          cursor: 'pointer', marginBottom: 16,
+          fontFamily: "'Barlow Condensed', sans-serif",
+        }}
+      >
+        {isIOS ? 'Safariで開く' : 'Chromeで開く'}
+      </button>
+
+      <div style={{
+        background: theme.surface, border: `1px solid ${theme.border}`,
+        borderRadius: 10, padding: '12px 16px',
+        width: '100%', maxWidth: 300,
+      }}>
+        <div style={{ color: theme.textDim, fontSize: 11, marginBottom: 6 }}>
+          ボタンが効かない場合はURLをコピー
+        </div>
+        <div
+          onClick={() => navigator.clipboard.writeText(url).catch(() => {})}
+          style={{
+            color: theme.textMid, fontSize: 11,
+            fontFamily: 'monospace', wordBreak: 'break-all',
+            cursor: 'pointer',
+          }}
+        >
+          {url}
+        </div>
+      </div>
+
+      {isAndroid && (
+        <div style={{ color: theme.textDim, fontSize: 12, marginTop: 16, textAlign: 'center', maxWidth: 280 }}>
+          Gmailアプリの場合：右上「⋮」→「Chromeで開く」
+        </div>
+      )}
+      {isIOS && (
+        <div style={{ color: theme.textDim, fontSize: 12, marginTop: 16, textAlign: 'center', maxWidth: 280 }}>
+          右下「Safari」アイコンまたは「⋯」→「Safariで開く」
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function LoginScreen() {
   const { signInWithGoogle } = useAuth()
   const [showPrivacyDetails, setShowPrivacyDetails] = useState(false)
+
+  if (isInAppBrowser()) return <WebViewBlock />
 
   return (
     <div style={{
