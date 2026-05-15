@@ -427,7 +427,8 @@ function RecordModal({
     maxHR: initial?.max_heart_rate?.toString() ?? '',
     comment: initial?.comment ?? '',
   })
-  const [timeMinutes, setTimeMinutes] = useState(initial ? Math.floor(initial.time_ms / 60000) : 0)
+  const [timeHours, setTimeHours] = useState(initial ? Math.floor(initial.time_ms / 3600000) : 0)
+  const [timeMinutes, setTimeMinutes] = useState(initial ? Math.floor((initial.time_ms % 3600000) / 60000) : 0)
   const [timeSeconds, setTimeSeconds] = useState(initial ? Math.floor(initial.time_ms / 1000) % 60 : 0)
   const [timeCs, setTimeCs] = useState(initial ? Math.floor((initial.time_ms % 1000) / 10) : 0)
   const [showCustomForm, setShowCustomForm] = useState(false)
@@ -454,7 +455,7 @@ function RecordModal({
   }
 
   async function handleSave() {
-    const ms = timeMinutes * 60000 + timeSeconds * 1000 + timeCs * 10
+    const ms = timeHours * 3600000 + timeMinutes * 60000 + timeSeconds * 1000 + timeCs * 10
     if (ms <= 0) { setError('タイムを正しく入力してください'); return }
     if (!form.eventId) { setError('種目を選択してください'); return }
     if (!form.recordedAt) { setError('日付を入力してください'); return }
@@ -531,10 +532,21 @@ function RecordModal({
         onClick={e => e.stopPropagation()}
       >
         <div style={{
-          color: theme.text, fontSize: 18, fontWeight: 700,
-          fontFamily: "'Barlow Condensed', sans-serif", marginBottom: 20,
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20,
         }}>
-          {initial ? '記録を編集' : '記録を追加'}
+          <div style={{
+            color: theme.text, fontSize: 18, fontWeight: 700,
+            fontFamily: "'Barlow Condensed', sans-serif",
+          }}>
+            {initial ? '記録を編集' : '記録を追加'}
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none', border: 'none', color: theme.textDim,
+              fontSize: 22, cursor: 'pointer', padding: '4px 8px', lineHeight: 1,
+            }}
+          >✕</button>
         </div>
 
         {/* Event */}
@@ -578,18 +590,14 @@ function RecordModal({
         {/* Time */}
         <div style={{ marginBottom: 14 }}>
           <div style={labelStyle}>タイム</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <WheelPicker value={timeMinutes} onChange={setTimeMinutes} count={100} label="分" />
-            <div style={{
-              color: theme.textDim, fontSize: 24, fontWeight: 700,
-              flexShrink: 0, paddingTop: 20, lineHeight: 1,
-            }}>:</div>
-            <WheelPicker value={timeSeconds} onChange={setTimeSeconds} count={60} label="秒" />
-            <div style={{
-              color: theme.textDim, fontSize: 24, fontWeight: 700,
-              flexShrink: 0, paddingTop: 20, lineHeight: 1,
-            }}>.</div>
-            <WheelPicker value={timeCs} onChange={setTimeCs} count={100} label="1/100秒" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <WheelPicker value={timeHours} onChange={setTimeHours} count={24} label="時間（h）" />
+            <div style={{ color: theme.textDim, fontSize: 20, fontWeight: 700, flexShrink: 0, paddingTop: 18, lineHeight: 1 }}>:</div>
+            <WheelPicker value={timeMinutes} onChange={setTimeMinutes} count={60} label="分（min）" />
+            <div style={{ color: theme.textDim, fontSize: 20, fontWeight: 700, flexShrink: 0, paddingTop: 18, lineHeight: 1 }}>:</div>
+            <WheelPicker value={timeSeconds} onChange={setTimeSeconds} count={60} label="秒（s）" />
+            <div style={{ color: theme.textDim, fontSize: 20, fontWeight: 700, flexShrink: 0, paddingTop: 18, lineHeight: 1 }}>.</div>
+            <WheelPicker value={timeCs} onChange={setTimeCs} count={100} label="cs" />
           </div>
         </div>
 
@@ -684,17 +692,44 @@ export function TimeAttackTab({ currentRoom }: Props) {
   const [editRecord, setEditRecord] = useState<RunRecord | null>(null)
 
   const fetchEvents = useCallback(async () => {
-    const { data } = await supabase
-      .from('events')
-      .select('*')
-      .or(
-        currentRoom
-          ? `is_preset.eq.true,room_id.eq.${currentRoom.id}`
-          : 'is_preset.eq.true'
-      )
-      .order('distance_meters', { ascending: true })
-    setEvents(data ?? [])
-  }, [currentRoom])
+    if (!user) return
+
+    const [eventsRes, usageRes] = await Promise.all([
+      supabase
+        .from('events')
+        .select('*')
+        .or(
+          currentRoom
+            ? `is_preset.eq.true,room_id.eq.${currentRoom.id}`
+            : `is_preset.eq.true,created_by.eq.${user.id}`
+        ),
+      supabase
+        .from('records')
+        .select('event_id, recorded_at')
+        .eq('user_id', user.id),
+    ])
+
+    const usageMap: Record<string, { count: number; lastUsed: string }> = {}
+    for (const r of usageRes.data ?? []) {
+      const curr = usageMap[r.event_id]
+      if (!curr) {
+        usageMap[r.event_id] = { count: 1, lastUsed: r.recorded_at }
+      } else {
+        curr.count++
+        if (r.recorded_at > curr.lastUsed) curr.lastUsed = r.recorded_at
+      }
+    }
+
+    const sorted = (eventsRes.data ?? []).sort((a, b) => {
+      const ua = usageMap[a.id] ?? { count: 0, lastUsed: '' }
+      const ub = usageMap[b.id] ?? { count: 0, lastUsed: '' }
+      if (ub.count !== ua.count) return ub.count - ua.count
+      if (ua.lastUsed !== ub.lastUsed) return ub.lastUsed > ua.lastUsed ? 1 : -1
+      return (a.distance_meters ?? 99999) - (b.distance_meters ?? 99999)
+    })
+
+    setEvents(sorted)
+  }, [currentRoom, user])
 
   const fetchRecords = useCallback(async (reset = false) => {
     if (!user) return

@@ -1,10 +1,14 @@
 export function formatTime(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
-  const min = Math.floor(totalSec / 60)
+  const h = Math.floor(totalSec / 3600)
+  const min = Math.floor((totalSec % 3600) / 60)
   const sec = totalSec % 60
   const cs = Math.floor((ms % 1000) / 10)
-  if (min === 0) return `${sec}.${String(cs).padStart(2, '0')}`
-  return `${min}:${String(sec).padStart(2, '0')}.${String(cs).padStart(2, '0')}`
+  const csStr = String(cs).padStart(2, '0')
+  const secStr = String(sec).padStart(2, '0')
+  if (h > 0) return `${h}:${String(min).padStart(2, '0')}:${secStr}.${csStr}`
+  if (min === 0) return `${sec}.${csStr}`
+  return `${min}:${secStr}.${csStr}`
 }
 
 export function parseTime(input: string): number | null {

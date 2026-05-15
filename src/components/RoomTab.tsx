@@ -154,6 +154,23 @@ export function RoomTab({ currentRoom, onRoomChange, onRoomsLoaded }: Props) {
     onRoomChange(room)
   }
 
+  async function handleLeaveRoom(room: RoomWithMembers) {
+    const isOwner = room.created_by === user?.id
+    const msg = isOwner
+      ? `「${room.name}」を削除しますか？メンバー全員のデータが失われます。`
+      : `「${room.name}」から退出しますか？`
+    if (!confirm(msg)) return
+
+    if (isOwner) {
+      await supabase.from('rooms').delete().eq('id', room.id)
+    } else {
+      await supabase.from('room_members').delete().eq('room_id', room.id).eq('user_id', user!.id)
+    }
+
+    if (currentRoom?.id === room.id) onRoomChange(null)
+    await fetchRooms()
+  }
+
   function copyInviteLink(room: Room) {
     const url = `${window.location.origin}?token=${room.invite_token}`
     navigator.clipboard.writeText(url).then(() => {
@@ -251,18 +268,32 @@ export function RoomTab({ currentRoom, onRoomChange, onRoomsLoaded }: Props) {
                   )}
                 </div>
 
-                <button
-                  onClick={() => copyInviteLink(room)}
-                  style={{
-                    width: '100%',
-                    background: theme.surfaceMid,
-                    border: `1px solid ${theme.border}`,
-                    color: theme.textMid, borderRadius: 10,
-                    padding: '10px 0', fontSize: 13,
-                    cursor: 'pointer',
-                    fontFamily: "'Barlow Condensed', sans-serif",
-                  }}
-                >🔗 招待リンクをコピー</button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => copyInviteLink(room)}
+                    style={{
+                      flex: 1,
+                      background: theme.surfaceMid,
+                      border: `1px solid ${theme.border}`,
+                      color: theme.textMid, borderRadius: 10,
+                      padding: '10px 0', fontSize: 13,
+                      cursor: 'pointer',
+                      fontFamily: "'Barlow Condensed', sans-serif",
+                    }}
+                  >🔗 招待リンクをコピー</button>
+                  <button
+                    onClick={() => handleLeaveRoom(room)}
+                    style={{
+                      background: 'transparent',
+                      border: `1px solid rgba(248,113,113,0.4)`,
+                      color: '#F87171', borderRadius: 10,
+                      padding: '10px 14px', fontSize: 12,
+                      cursor: 'pointer',
+                      fontFamily: "'Barlow Condensed', sans-serif",
+                      whiteSpace: 'nowrap',
+                    }}
+                  >{room.created_by === user?.id ? '削除' : '退出'}</button>
+                </div>
               </div>
             )
           })}
