@@ -7,12 +7,19 @@ interface AuthContextType {
   user: User | null
   profile: Profile | null
   loading: boolean
-  signInWithGoogle: () => Promise<void>
+  signUp: (nickname: string, pin: string) => Promise<void>
+  signIn: (nickname: string, pin: string) => Promise<void>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
+
+function toEmail(nickname: string) {
+  // ニックネームをURL安全な形式に変換してダミーメールを生成
+  const safe = encodeURIComponent(nickname.trim().toLowerCase()).replace(/%/g, '_')
+  return `${safe}@app.local`
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -21,7 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function fetchProfile(userId: string) {
     const { data } = await supabase
-      .from('profiles')
+      .from('users')
       .select('*')
       .eq('id', userId)
       .single()
@@ -51,11 +58,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe()
   }, [])
 
-  async function signInWithGoogle() {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
+  async function signUp(nickname: string, pin: string) {
+    const nick = nickname.trim()
+
+    // ニックネームの重複チェック
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('nickname', nick)
+      .maybeSingle()
+    if (existing) throw new Error('このニックネームはすでに使われています')
+
+    const { error } = await supabase.auth.signUp({
+      email: toEmail(nick),
+      password: pin,
+      options: {
+        data: { display_name: nick },
+      },
     })
+    if (error) throw error
+    // usersテーブルへのINSERTはDBトリガー (on_auth_user_created) が自動で行う
+  }
+
+  async function signIn(nickname: string, pin: string) {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: toEmail(nickname.trim()),
+      password: pin,
+    })
+    if (error) throw error
   }
 
   async function signOut() {
@@ -67,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signInWithGoogle, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, signUp, signIn, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   )

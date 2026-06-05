@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { LoginScreen } from './components/LoginScreen'
-import { TimeAttackTab } from './components/TimeAttackTab'
+import { InputPage } from './components/InputPage'
 import { StatsTab } from './components/StatsTab'
 import { RankingTab } from './components/RankingTab'
 import { RoomTab } from './components/RoomTab'
@@ -72,25 +72,12 @@ function MainApp() {
   const [rooms, setRooms] = useState<Room[]>([])
   const [showRoomPicker, setShowRoomPicker] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [apiKeyCopied, setApiKeyCopied] = useState(false)
 
-  function copyApiKey() {
-    if (!profile?.api_key) return
-    navigator.clipboard.writeText(profile.api_key).then(() => {
-      setApiKeyCopied(true)
-      setTimeout(() => setApiKeyCopied(false), 2000)
-    })
-  }
-
-  // Handle invite token: read from URL or sessionStorage (persisted across OAuth redirect)
+  // Handle invite token from URL
   useEffect(() => {
-    const urlToken = new URLSearchParams(window.location.search).get('token')
-    const storedToken = sessionStorage.getItem('pending_invite_token')
-    if (storedToken) sessionStorage.removeItem('pending_invite_token')
-
-    const token = urlToken ?? storedToken
+    const token = new URLSearchParams(window.location.search).get('token')
     if (token) {
-      if (urlToken) window.history.replaceState({}, '', window.location.pathname)
+      window.history.replaceState({}, '', window.location.pathname)
       handleInviteToken(token)
     }
   }, [])
@@ -110,7 +97,7 @@ function MainApp() {
     setActiveTab('room')
   }
 
-  const displayName = profile?.display_name ?? 'ユーザー'
+  const displayName = profile?.nickname ?? 'ユーザー'
   const letter = displayName[0]?.toUpperCase() ?? 'U'
 
   return (
@@ -150,7 +137,7 @@ function MainApp() {
             cursor: 'pointer', padding: 0,
           }}
         >
-          <Avatar src={profile?.avatar_url} letter={letter} size={32} />
+          <Avatar letter={letter} size={32} />
           <div style={{ textAlign: 'left' }}>
             <div style={{ color: theme.text, fontSize: 14, fontWeight: 600 }}>{displayName}</div>
             <div style={{ color: theme.textDim, fontSize: 11 }}>
@@ -236,41 +223,6 @@ function MainApp() {
             borderRadius: '0 0 0 12px',
             zIndex: 16, overflow: 'hidden', minWidth: 200,
           }}>
-            {profile?.api_key && (
-              <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.border}` }}>
-                <div style={{
-                  color: theme.textDim, fontSize: 10,
-                  fontFamily: "'Barlow Condensed', sans-serif",
-                  letterSpacing: '0.08em', marginBottom: 6,
-                }}>
-                  SHORTCUT API KEY
-                </div>
-                <div style={{
-                  color: theme.textMid, fontSize: 11,
-                  fontFamily: 'monospace',
-                  background: theme.surface,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: 6, padding: '4px 8px',
-                  marginBottom: 6,
-                  wordBreak: 'break-all',
-                }}>
-                  {profile.api_key}
-                </div>
-                <button
-                  onClick={copyApiKey}
-                  style={{
-                    width: '100%', background: apiKeyCopied ? theme.surfaceHigh : theme.surfaceMid,
-                    border: `1px solid ${theme.border}`,
-                    color: apiKeyCopied ? theme.accentBright : theme.textMid,
-                    borderRadius: 6, padding: '5px 0',
-                    fontSize: 12, cursor: 'pointer',
-                    fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600,
-                  }}
-                >
-                  {apiKeyCopied ? '✓ コピーしました' : 'APIキーをコピー'}
-                </button>
-              </div>
-            )}
             <button
               onClick={() => { signOut(); setShowSettings(false) }}
               style={{
@@ -287,7 +239,7 @@ function MainApp() {
 
       {/* Content */}
       <div>
-        {activeTab === 'record' && <TimeAttackTab currentRoom={currentRoom} />}
+        {activeTab === 'record' && <InputPage />}
         {activeTab === 'stats' && <StatsTab />}
         {activeTab === 'ranking' && <RankingTab currentRoom={currentRoom} />}
         {activeTab === 'room' && (
@@ -356,13 +308,6 @@ function AppContent() {
 }
 
 export default function App() {
-  // Persist invite token to sessionStorage immediately on page load,
-  // before any OAuth redirect clears the query string.
-  useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get('token')
-    if (token) sessionStorage.setItem('pending_invite_token', token)
-  }, [])
-
   return (
     <AuthProvider>
       <link

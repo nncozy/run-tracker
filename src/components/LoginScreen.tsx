@@ -2,25 +2,61 @@ import { useState } from 'react'
 import { theme } from '../theme'
 import { useAuth } from '../contexts/AuthContext'
 
-function isInAppBrowser(): boolean {
-  const ua = navigator.userAgent
-  if (/Android/.test(ua) && /; wv\)/.test(ua)) return true
-  if (/FBAN|FBAV|Instagram|Twitter|Line\/|LinkedIn|Snapchat|Pinterest|GSA\//.test(ua)) return true
-  if (/iPhone|iPad|iPod/.test(ua) && /AppleWebKit/.test(ua) && !/Safari/.test(ua)) return true
-  return false
+type Mode = 'login' | 'register'
+
+function validateNickname(nickname: string): string | null {
+  if (nickname.trim().length < 2) return 'ニックネームは2文字以上にしてください'
+  if (nickname.trim().length > 20) return 'ニックネームは20文字以内にしてください'
+  return null
 }
 
-function WebViewBlock() {
-  const url = window.location.href
-  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
-  const isAndroid = /Android/.test(navigator.userAgent)
+function validatePin(pin: string): string | null {
+  if (!/^\d{4}$/.test(pin)) return 'PINは4桁の数字にしてください'
+  return null
+}
 
-  function openInBrowser() {
-    if (isIOS) {
-      window.location.href = `x-safari-${url}`
-    } else {
-      window.location.href = `intent://${url.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`
+export function LoginScreen() {
+  const { signIn, signUp } = useAuth()
+  const [mode, setMode] = useState<Mode>('login')
+  const [nickname, setNickname] = useState('')
+  const [pin, setPin] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+
+    const nErr = validateNickname(nickname)
+    if (nErr) { setError(nErr); return }
+    const pErr = validatePin(pin)
+    if (pErr) { setError(pErr); return }
+
+    setLoading(true)
+    try {
+      if (mode === 'register') {
+        await signUp(nickname, pin)
+      } else {
+        await signIn(nickname, pin)
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('Invalid login credentials')) setError('ニックネームまたはPINが違います')
+      else if (msg.includes('already registered') || msg.includes('すでに使われています')) setError('このニックネームはすでに使われています')
+      else setError(msg)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    background: theme.surface,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 10, padding: '12px 14px',
+    color: theme.text, fontSize: 15,
+    fontFamily: "'DM Sans', sans-serif",
+    outline: 'none',
   }
 
   return (
@@ -28,91 +64,8 @@ function WebViewBlock() {
       background: theme.bg, minHeight: '100dvh',
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
-      padding: '32px 24px', fontFamily: "'DM Sans', sans-serif",
-    }}>
-      <div style={{ fontSize: 56, marginBottom: 24 }}>🔒</div>
-      <div style={{
-        color: theme.text, fontSize: 20, fontWeight: 700,
-        fontFamily: "'Barlow Condensed', sans-serif",
-        textAlign: 'center', marginBottom: 12,
-      }}>
-        アプリ内ブラウザではログインできません
-      </div>
-      <div style={{
-        color: theme.textMid, fontSize: 14, textAlign: 'center',
-        lineHeight: 1.7, marginBottom: 32, maxWidth: 300,
-      }}>
-        Googleのポリシーにより、{isIOS ? 'Safari' : 'Chrome'}などの
-        ブラウザからログインする必要があります。
-      </div>
-
-      <button
-        onClick={openInBrowser}
-        style={{
-          width: '100%', maxWidth: 300,
-          background: `linear-gradient(135deg, ${theme.accentDeep}, ${theme.accent})`,
-          border: 'none', borderRadius: 14,
-          color: '#fff', padding: '14px 0',
-          fontSize: 15, fontWeight: 600,
-          cursor: 'pointer', marginBottom: 16,
-          fontFamily: "'Barlow Condensed', sans-serif",
-        }}
-      >
-        {isIOS ? 'Safariで開く' : 'Chromeで開く'}
-      </button>
-
-      <div style={{
-        background: theme.surface, border: `1px solid ${theme.border}`,
-        borderRadius: 10, padding: '12px 16px',
-        width: '100%', maxWidth: 300,
-      }}>
-        <div style={{ color: theme.textDim, fontSize: 11, marginBottom: 6 }}>
-          ボタンが効かない場合はURLをコピー
-        </div>
-        <div
-          onClick={() => navigator.clipboard.writeText(url).catch(() => {})}
-          style={{
-            color: theme.textMid, fontSize: 11,
-            fontFamily: 'monospace', wordBreak: 'break-all',
-            cursor: 'pointer',
-          }}
-        >
-          {url}
-        </div>
-      </div>
-
-      {isAndroid && (
-        <div style={{ color: theme.textDim, fontSize: 12, marginTop: 16, textAlign: 'center', maxWidth: 280 }}>
-          Gmailアプリの場合：右上「⋮」→「Chromeで開く」
-        </div>
-      )}
-      {isIOS && (
-        <div style={{ color: theme.textDim, fontSize: 12, marginTop: 16, textAlign: 'center', maxWidth: 280 }}>
-          右下「Safari」アイコンまたは「⋯」→「Safariで開く」
-        </div>
-      )}
-    </div>
-  )
-}
-
-export function LoginScreen() {
-  const { signInWithGoogle } = useAuth()
-  const [showPrivacyDetails, setShowPrivacyDetails] = useState(false)
-
-  if (isInAppBrowser()) return <WebViewBlock />
-
-  return (
-    <div style={{
-      background: theme.bg,
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '0 32px',
-      fontFamily: "'DM Sans', sans-serif",
-      position: 'relative',
-      overflow: 'hidden',
+      padding: '0 32px', fontFamily: "'DM Sans', sans-serif",
+      position: 'relative', overflow: 'hidden',
     }}>
       <link
         href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap"
@@ -121,156 +74,120 @@ export function LoginScreen() {
 
       {/* Ambient glow */}
       <div style={{
-        position: 'absolute',
-        top: -200,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: 500,
-        height: 500,
-        borderRadius: '50%',
+        position: 'absolute', top: -200, left: '50%', transform: 'translateX(-50%)',
+        width: 500, height: 500, borderRadius: '50%',
         background: 'radial-gradient(circle, rgba(109,40,217,0.35) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'absolute',
-        bottom: -100,
-        right: -100,
-        width: 300,
-        height: 300,
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(139,92,246,0.2) 0%, transparent 70%)',
         pointerEvents: 'none',
       }} />
 
       {/* Logo */}
-      <div style={{ position: 'relative', textAlign: 'center', marginBottom: 48 }}>
+      <div style={{ textAlign: 'center', marginBottom: 40, position: 'relative' }}>
         <div style={{
-          width: 72,
-          height: 72,
-          borderRadius: 20,
+          width: 72, height: 72, borderRadius: 20,
           background: `linear-gradient(135deg, ${theme.accentDeep}, ${theme.accent})`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 20px',
-          fontSize: 32,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px', fontSize: 32,
           boxShadow: '0 8px 32px rgba(109, 40, 217, 0.5)',
         }}>⚡</div>
         <div style={{
-          fontFamily: "'Barlow Condensed', sans-serif",
-          fontWeight: 800,
-          fontSize: 36,
-          color: theme.text,
-          letterSpacing: '-0.02em',
+          fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 800,
+          fontSize: 36, color: theme.text, letterSpacing: '-0.02em',
         }}>RUN TRACKER</div>
-        <div style={{
-          color: theme.textDim,
-          fontSize: 14,
-          marginTop: 8,
-        }}>タイムやパフォーマンスを記録・仲間にシェア</div>
+        <div style={{ color: theme.textDim, fontSize: 13, marginTop: 6 }}>
+          タイムやパフォーマンスを記録・仲間にシェア
+        </div>
       </div>
 
-      {/* Features */}
+      {/* Tab toggle */}
       <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
-        marginBottom: 48,
-        width: '100%',
-        maxWidth: 320,
+        display: 'flex', width: '100%', maxWidth: 320,
+        background: theme.surface, border: `1px solid ${theme.border}`,
+        borderRadius: 10, padding: 4, marginBottom: 20,
       }}>
-        {[
-          { icon: '⚡', text: 'タイムアタック記録・管理' },
-          { icon: '🏆', text: 'メンバーとのタイム比較' },
-          { icon: '📊', text: 'HealthKit統計グラフ' },
-        ].map(({ icon, text }) => (
-          <div key={text} style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            background: theme.surface,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 12,
-            padding: '12px 16px',
-          }}>
-            <span style={{ fontSize: 20 }}>{icon}</span>
-            <span style={{ color: theme.textMid, fontSize: 14 }}>{text}</span>
-          </div>
+        {(['login', 'register'] as Mode[]).map(m => (
+          <button
+            key={m}
+            onClick={() => { setMode(m); setError('') }}
+            style={{
+              flex: 1, border: 'none', borderRadius: 8, padding: '8px 0',
+              background: mode === m ? `linear-gradient(135deg, ${theme.accentDeep}, ${theme.accent})` : 'transparent',
+              color: mode === m ? '#fff' : theme.textDim,
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              fontFamily: "'Barlow Condensed', sans-serif",
+              transition: 'all 0.15s',
+            }}
+          >
+            {m === 'login' ? 'ログイン' : '新規登録'}
+          </button>
         ))}
       </div>
 
-      {/* Google login button */}
-      <button
-        onClick={signInWithGoogle}
-        style={{
-          width: '100%',
-          maxWidth: 320,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 12,
-          background: '#fff',
-          border: 'none',
-          borderRadius: 14,
-          padding: '14px 24px',
-          fontSize: 16,
-          fontWeight: 600,
-          fontFamily: "'DM Sans', sans-serif",
-          color: '#1a1a1a',
-          cursor: 'pointer',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
-        }}
-      >
-        <svg width="20" height="20" viewBox="0 0 48 48">
-          <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
-          <path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z" />
-          <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
-          <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z" />
-        </svg>
-        Googleでログイン
-      </button>
+      {/* Form */}
+      <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 320 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ color: theme.textDim, fontSize: 11, marginBottom: 6, fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: '0.06em' }}>
+              ニックネーム
+            </div>
+            <input
+              type="text"
+              value={nickname}
+              onChange={e => setNickname(e.target.value)}
+              placeholder="例: こうじ"
+              autoCapitalize="none"
+              autoCorrect="off"
+              style={inputStyle}
+            />
+          </div>
 
-      <button
-        onClick={() => setShowPrivacyDetails((prev) => !prev)}
-        style={{
-          marginTop: 16,
-          background: 'transparent',
-          border: 'none',
-          color: theme.textMid,
-          fontSize: 12,
-          textDecoration: 'underline',
-          cursor: 'pointer',
-          padding: 0,
-        }}
-        aria-expanded={showPrivacyDetails}
-      >
-        {showPrivacyDetails ? 'データ利用の詳細を閉じる' : 'データ利用の詳細を見る'}
-      </button>
+          <div>
+            <div style={{ color: theme.textDim, fontSize: 11, marginBottom: 6, fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: '0.06em' }}>
+              4桁のPIN
+            </div>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              value={pin}
+              onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="••••"
+              style={inputStyle}
+            />
+          </div>
 
-      {showPrivacyDetails && (
-        <div style={{
-          marginTop: 12,
-          padding: 14,
-          background: theme.surface,
-          border: `1px solid ${theme.border}`,
-          borderRadius: 14,
-          color: theme.textDim,
-          fontSize: 12,
-          lineHeight: 1.6,
-          textAlign: 'left',
-          maxWidth: 320,
-          width: '100%',
-        }}>
-          <p style={{ margin: 0 }}>
-            Googleアカウントは、ログイン認証とプロフィールの表示、
-            ランキング・記録同期のためだけに使われます。
-            それ以外の目的や第三者提供は行いません。
-          </p>
+          {error && (
+            <div style={{
+              background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)',
+              borderRadius: 8, padding: '10px 14px',
+              color: '#F87171', fontSize: 13,
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%', border: 'none', borderRadius: 12,
+              padding: '14px 0', marginTop: 4,
+              background: loading
+                ? theme.surfaceMid
+                : `linear-gradient(135deg, ${theme.accentDeep}, ${theme.accent})`,
+              color: '#fff', fontSize: 15, fontWeight: 700,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontFamily: "'Barlow Condensed', sans-serif",
+              boxShadow: loading ? 'none' : '0 4px 24px rgba(109,40,217,0.4)',
+              transition: 'all 0.15s',
+            }}
+          >
+            {loading ? '処理中...' : mode === 'login' ? 'ログイン' : 'アカウント作成'}
+          </button>
         </div>
-      )}
+      </form>
 
-      <p style={{ color: theme.textDim, fontSize: 12, marginTop: 24, textAlign: 'center' }}>
-        ログインにより必要データの利用に同意したものとみなします
+      <p style={{ color: theme.textDim, fontSize: 11, marginTop: 24, textAlign: 'center', maxWidth: 280, lineHeight: 1.6 }}>
+        メールアドレス不要。ニックネームと4桁のPINだけで使えます。
       </p>
     </div>
   )

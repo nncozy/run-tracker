@@ -1,8 +1,6 @@
 export interface Profile {
   id: string
-  display_name: string | null
-  avatar_url: string | null
-  api_key: string | null
+  nickname: string
   created_at: string
 }
 
@@ -19,34 +17,29 @@ export interface RoomMember {
   user_id: string
   role: string
   joined_at: string
-  profiles?: Profile
+  users?: Profile
 }
 
-export interface RunEvent {
+export interface UserDistance {
   id: string
+  user_id: string
   name: string
-  distance_meters: number | null
-  is_preset: boolean
-  created_by: string | null
-  room_id: string | null
+  distance_km: number
+  usage_count: number
+  last_used_at: string
   created_at: string
 }
 
 export interface RunRecord {
   id: string
   user_id: string
-  room_id: string | null
-  event_id: string
+  distance_id: string | null
   time_ms: number
-  recorded_at: string
-  recorded_at_time: string | null
-  avg_heart_rate: number | null
-  max_heart_rate: number | null
-  comment: string | null
+  run_date: string
+  custom_fields: { weather?: string; memo?: string; [key: string]: unknown }
   created_at: string
-  updated_at: string
-  events?: RunEvent
-  profiles?: Profile
+  user_distances?: UserDistance | null
+  users?: Profile
 }
 
 export interface HealthActivity {

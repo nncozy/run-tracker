@@ -69,7 +69,7 @@ export function RoomTab({ currentRoom, onRoomChange, onRoomsLoaded }: Props) {
     // Fetch members for each room
     const { data: allMembers } = await supabase
       .from('room_members')
-      .select('*, profiles(id, display_name, avatar_url)')
+      .select('*, users(id, nickname)')
       .in('room_id', roomIds)
 
     const roomsWithMembers: RoomWithMembers[] = roomList.map(room => ({
@@ -249,7 +249,7 @@ export function RoomTab({ currentRoom, onRoomChange, onRoomsLoaded }: Props) {
                 {/* Member avatars */}
                 <div style={{ display: 'flex', marginBottom: 12 }}>
                   {room.members.slice(0, 5).map((m, idx) => {
-                    const letter = (m.profiles?.display_name ?? 'U')[0].toUpperCase()
+                    const letter = (m.users?.nickname ?? 'U')[0].toUpperCase()
                     return (
                       <div key={m.user_id} style={{ marginLeft: idx === 0 ? 0 : -8, zIndex: 5 - idx }}>
                         <Avatar letter={letter} size={28} />

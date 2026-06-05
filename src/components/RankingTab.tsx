@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { theme, memberColorPalette } from '../theme'
 import { formatTime } from '../utils/time'
-import type { Room, RunEvent, RunRecord, RoomMember } from '../types/database'
+import type { Room, RunRecord, RoomMember } from '../types/database'
 
 interface Props {
   currentRoom: Room | null
@@ -25,88 +25,58 @@ function Avatar({ letter, size = 32 }: { letter: string; size?: number }) {
 
 export function RankingTab({ currentRoom }: Props) {
   const { user } = useAuth()
-  const [events, setEvents] = useState<RunEvent[]>([])
   const [members, setMembers] = useState<RoomMember[]>([])
   const [records, setRecords] = useState<RunRecord[]>([])
-  const [selectedEventId, setSelectedEventId] = useState<string>('')
+  const [selectedKm, setSelectedKm] = useState<number | null>(null)
   const [sortBy, setSortBy] = useState<'time' | 'best'>('best')
   const [loading, setLoading] = useState(true)
 
   const fetchData = useCallback(async () => {
-    if (!currentRoom && !user) return
+    if (!currentRoom || !user) return
     setLoading(true)
 
-    if (currentRoom) {
-      // Fetch room members with profiles
-      const { data: membersData } = await supabase
-        .from('room_members')
-        .select('*, profiles(id, display_name, avatar_url)')
-        .eq('room_id', currentRoom.id)
-      setMembers(membersData ?? [])
+    // 1. Fetch room members
+    const { data: membersData } = await supabase
+      .from('room_members')
+      .select('*, users(id, nickname)')
+      .eq('room_id', currentRoom.id)
+    const memberList = (membersData ?? []) as RoomMember[]
+    setMembers(memberList)
 
-      // Fetch events available in this room
-      const { data: eventsData } = await supabase
-        .from('events')
-        .select('*')
-        .or(`is_preset.eq.true,room_id.eq.${currentRoom.id}`)
-        .order('distance_meters', { ascending: true })
-      const evs = eventsData ?? []
-      setEvents(evs)
-      if (evs.length > 0 && !selectedEventId) setSelectedEventId(evs[2]?.id ?? evs[0].id)
-    } else {
-      // Solo mode: just the current user
-      if (user) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
-        setMembers([{
-          room_id: '',
-          user_id: user.id,
-          role: 'member',
-          joined_at: '',
-          profiles: profileData ?? undefined,
-        }])
-        const { data: eventsData } = await supabase
-          .from('events')
-          .select('*')
-          .eq('is_preset', true)
-          .order('distance_meters', { ascending: true })
-        const evs = eventsData ?? []
-        setEvents(evs)
-        if (evs.length > 0 && !selectedEventId) setSelectedEventId(evs[2]?.id ?? evs[0].id)
-      }
+    if (memberList.length === 0) {
+      setRecords([])
+      setLoading(false)
+      return
     }
+
+    // 2. Fetch all records from room members (RLS allows viewing room members' records)
+    const memberIds = memberList.map(m => m.user_id)
+    const { data: recordsData } = await supabase
+      .from('records')
+      .select('*, user_distances(id, name, distance_km)')
+      .in('user_id', memberIds)
+
+    const fetched = (recordsData ?? []) as RunRecord[]
+    setRecords(fetched)
+
+    // 3. Auto-select the most common km value if none selected
+    const kms = [...new Set(
+      fetched
+        .filter(r => r.user_distances?.distance_km != null)
+        .map(r => r.user_distances!.distance_km)
+    )].sort((a, b) => a - b)
+
+    if (kms.length > 0) {
+      setSelectedKm(prev => prev ?? kms[0])
+    }
+
     setLoading(false)
   }, [currentRoom, user])
 
-  useEffect(() => { fetchData() }, [fetchData])
-
   useEffect(() => {
-    if (!selectedEventId) return
-
-    async function fetchRecords() {
-      let query = supabase
-        .from('records')
-        .select('*, profiles(id, display_name, avatar_url)')
-        .eq('event_id', selectedEventId)
-
-      if (currentRoom) {
-        query = query.eq('room_id', currentRoom.id)
-      } else if (user) {
-        query = query.eq('user_id', user.id).is('room_id', null)
-      }
-
-      query = sortBy === 'best'
-        ? query.order('time_ms', { ascending: true })
-        : query.order('recorded_at', { ascending: false })
-
-      const { data } = await query
-      setRecords(data ?? [])
-    }
-    fetchRecords()
-  }, [selectedEventId, sortBy, currentRoom, user])
+    setSelectedKm(null)
+    fetchData()
+  }, [fetchData])
 
   if (!currentRoom) {
     return (
@@ -133,9 +103,21 @@ export function RankingTab({ currentRoom }: Props) {
     )
   }
 
-  // Group records by member
+  // Derive available km options from actual records
+  const availableKms = [...new Set(
+    records
+      .filter(r => r.user_distances?.distance_km != null)
+      .map(r => r.user_distances!.distance_km)
+  )].sort((a, b) => a - b)
+
+  // Filter records by selected km
+  const filteredRecords = selectedKm != null
+    ? records.filter(r => r.user_distances?.distance_km === selectedKm)
+    : records
+
+  // Group by member
   const memberRecordsMap: Record<string, RunRecord[]> = {}
-  records.forEach(r => {
+  filteredRecords.forEach(r => {
     if (!memberRecordsMap[r.user_id]) memberRecordsMap[r.user_id] = []
     memberRecordsMap[r.user_id].push(r)
   })
@@ -148,15 +130,15 @@ export function RankingTab({ currentRoom }: Props) {
       const sorted = [...recs].sort(
         sortBy === 'best'
           ? (a, b) => a.time_ms - b.time_ms
-          : (a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime()
+          : (a, b) => new Date(b.run_date).getTime() - new Date(a.run_date).getTime()
       )
       return {
         member: m,
         records: sorted,
         best,
         color: memberColorPalette[colorIdx % memberColorPalette.length],
-        displayName: m.profiles?.display_name ?? 'Unknown',
-        letter: (m.profiles?.display_name ?? 'U')[0].toUpperCase(),
+        displayName: m.users?.nickname ?? 'Unknown',
+        letter: (m.users?.nickname ?? 'U')[0].toUpperCase(),
       }
     })
     .filter(m => m.records.length > 0)
@@ -177,19 +159,36 @@ export function RankingTab({ currentRoom }: Props) {
         </div>
       </div>
 
-      {/* Event filter */}
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 10 }}>
-        {events.map(ev => (
-          <button key={ev.id} onClick={() => setSelectedEventId(ev.id)} style={{
-            background: selectedEventId === ev.id ? theme.accentDeep : theme.surface,
-            border: `1px solid ${selectedEventId === ev.id ? theme.accent : theme.border}`,
-            color: selectedEventId === ev.id ? '#fff' : theme.textMid,
-            borderRadius: 20, padding: '5px 14px',
-            fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
-            fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600,
-          }}>{ev.name}</button>
-        ))}
-      </div>
+      {/* Distance filter chips */}
+      {availableKms.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 10 }}>
+          <button
+            onClick={() => setSelectedKm(null)}
+            style={{
+              background: selectedKm === null ? theme.accentDeep : theme.surface,
+              border: `1px solid ${selectedKm === null ? theme.accent : theme.border}`,
+              color: selectedKm === null ? '#fff' : theme.textMid,
+              borderRadius: 20, padding: '5px 14px',
+              fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+              fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600,
+            }}
+          >すべて</button>
+          {availableKms.map(km => (
+            <button
+              key={km}
+              onClick={() => setSelectedKm(km)}
+              style={{
+                background: selectedKm === km ? theme.accentDeep : theme.surface,
+                border: `1px solid ${selectedKm === km ? theme.accent : theme.border}`,
+                color: selectedKm === km ? '#fff' : theme.textMid,
+                borderRadius: 20, padding: '5px 14px',
+                fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+                fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600,
+              }}
+            >{km}km</button>
+          ))}
+        </div>
+      )}
 
       {/* Sort toggle */}
       <div style={{ display: 'flex', gap: 8, margin: '10px 0 16px' }}>
@@ -209,7 +208,7 @@ export function RankingTab({ currentRoom }: Props) {
         <div style={{ color: theme.textDim, textAlign: 'center', padding: '40px 0' }}>読み込み中...</div>
       ) : memberData.length === 0 ? (
         <div style={{ color: theme.textDim, textAlign: 'center', padding: '40px 0', fontSize: 14 }}>
-          この種目の記録はまだありません
+          {availableKms.length === 0 ? 'まだ記録がありません' : 'この距離の記録はまだありません'}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -274,6 +273,9 @@ export function RankingTab({ currentRoom }: Props) {
                 <div style={{ padding: '8px 0' }}>
                   {md.records.map((rec, idx) => {
                     const isBest = rec.time_ms === md.best
+                    const d = new Date(rec.run_date)
+                    const dateStr = `${d.getMonth() + 1}/${d.getDate()}`
+                    const memo = rec.custom_fields?.memo
                     return (
                       <div key={rec.id} style={{
                         display: 'flex', alignItems: 'center', gap: 12,
@@ -284,9 +286,9 @@ export function RankingTab({ currentRoom }: Props) {
                       }}>
                         <div style={{
                           color: theme.textDim, fontSize: 11,
-                          width: 54, flexShrink: 0,
+                          width: 44, flexShrink: 0,
                         }}>
-                          {rec.recorded_at.slice(5)}
+                          {dateStr}
                         </div>
                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{
@@ -302,13 +304,13 @@ export function RankingTab({ currentRoom }: Props) {
                               fontFamily: "'Barlow Condensed', sans-serif",
                             }}>PB</span>
                           )}
-                          {rec.comment && (
-                            <span style={{ color: theme.textDim, fontSize: 11 }}>{rec.comment}</span>
+                          {memo && (
+                            <span style={{ color: theme.textDim, fontSize: 11 }}>{memo}</span>
                           )}
                         </div>
-                        {rec.avg_heart_rate != null && (
-                          <div style={{ color: theme.textDim, fontSize: 11, textAlign: 'right', flexShrink: 0 }}>
-                            ♥ {rec.avg_heart_rate}
+                        {rec.user_distances?.name && selectedKm === null && (
+                          <div style={{ color: theme.textDim, fontSize: 11, flexShrink: 0 }}>
+                            {rec.user_distances.distance_km}km
                           </div>
                         )}
                       </div>
