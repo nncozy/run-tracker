@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-  BarChart, Bar, LineChart, Line,
+  BarChart, Bar, Cell, LineChart, Line,
   XAxis, YAxis, ResponsiveContainer, Tooltip, ReferenceLine,
 } from 'recharts'
 import { supabase } from '../lib/supabase'
@@ -284,28 +284,63 @@ export function StatsTab() {
             ))}
           </div>
 
-          {/* ── 2. 月間走行距離（直近6ヶ月・常時表示） ── */}
+          {/* ── 2. 月間走行距離（直近6ヶ月・常時描画） ── */}
           <Card>
             <SectionHeader title="月間走行距離" />
-            <ResponsiveContainer width="100%" height={130}>
-              <BarChart data={monthlyKmData} barSize={32} margin={{ left: 0, right: 0 }}>
+            <ResponsiveContainer width="100%" height={140}>
+              <BarChart
+                data={monthlyKmData.map(d => ({ ...d, _bar: Math.max(d.km, 0.01) }))}
+                barSize={32}
+                margin={{ left: 4, right: 4, top: 4 }}
+              >
                 <XAxis dataKey="month" tick={{ fill: theme.textDim, fontSize: 11 }} axisLine={false} tickLine={false} interval={0} />
-                <YAxis hide />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`${v} km`, '走行距離']} />
-                <Bar dataKey="km" fill={theme.accent} radius={[4, 4, 0, 0]} minPointSize={2} />
+                <YAxis hide domain={[0, 'auto']} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(_v: unknown, _n: unknown, props: { payload?: { km?: number } }) =>
+                    [`${props.payload?.km ?? 0} km`, '走行距離']
+                  }
+                />
+                <Bar dataKey="_bar" radius={[4, 4, 0, 0]}>
+                  {monthlyKmData.map((entry, i) => (
+                    <Cell key={i} fill={entry.km > 0 ? theme.accent : theme.border} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </Card>
 
-          {/* ── 3. 週間走行距離（直近12週・常時表示） ── */}
+          {/* ── 3. 週間走行距離（直近12週・常時描画） ── */}
           <Card>
             <SectionHeader title="週間走行距離（直近12週）" />
-            <ResponsiveContainer width="100%" height={130}>
-              <BarChart data={weeklyKmData} barSize={16} margin={{ left: 0, right: 0 }}>
-                <XAxis dataKey="week" tick={{ fill: theme.textDim, fontSize: 9 }} axisLine={false} tickLine={false} interval={0} />
-                <YAxis hide />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`${v} km`, '走行距離']} />
-                <Bar dataKey="km" fill={theme.accentBright} radius={[4, 4, 0, 0]} minPointSize={2} />
+            <ResponsiveContainer width="100%" height={150}>
+              <BarChart
+                data={weeklyKmData.map(d => ({ ...d, _bar: Math.max(d.km, 0.01) }))}
+                barSize={16}
+                margin={{ left: 4, right: 4, top: 4, bottom: 20 }}
+              >
+                <XAxis
+                  dataKey="week"
+                  tick={{ fill: theme.textDim, fontSize: 9 }}
+                  axisLine={false}
+                  tickLine={false}
+                  interval={0}
+                  angle={-45}
+                  textAnchor="end"
+                  height={40}
+                />
+                <YAxis hide domain={[0, 'auto']} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(_v: unknown, _n: unknown, props: { payload?: { km?: number } }) =>
+                    [`${props.payload?.km ?? 0} km`, '走行距離']
+                  }
+                />
+                <Bar dataKey="_bar" radius={[4, 4, 0, 0]}>
+                  {weeklyKmData.map((entry, i) => (
+                    <Cell key={i} fill={entry.km > 0 ? theme.accentBright : theme.border} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </Card>
