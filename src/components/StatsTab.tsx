@@ -151,7 +151,7 @@ function buildWeeklyKm(records: RunRecord[]) {
   })
   return Object.entries(map)
     .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-8)
+    .slice(-12)
     .map(([date, km]) => ({
       week: new Date(date).toLocaleDateString('ja', { month: 'numeric', day: 'numeric' }),
       km: Math.round(km * 10) / 10,
@@ -170,15 +170,18 @@ export function StatsTab() {
   useEffect(() => {
     if (!user) return
     setLoading(true)
-    supabase
-      .from('records')
-      .select('*, user_distances(*)')
-      .eq('user_id', user.id)
-      .order('run_date', { ascending: false })
-      .then(({ data }) => {
-        setRecords((data ?? []) as RunRecord[])
-        setLoading(false)
-      })
+    Promise.all([
+      supabase.from('records').select('*').eq('user_id', user.id).order('run_date', { ascending: false }),
+      supabase.from('user_distances').select('*').eq('user_id', user.id),
+    ]).then(([{ data: recs }, { data: dists }]) => {
+      const distMap = Object.fromEntries((dists ?? []).map(d => [d.id, d]))
+      const merged = (recs ?? []).map(r => ({
+        ...r,
+        user_distances: r.distance_id ? (distMap[r.distance_id] ?? null) : null,
+      })) as RunRecord[]
+      setRecords(merged)
+      setLoading(false)
+    })
   }, [user])
 
   const distanceStats = buildDistanceStats(records)
@@ -187,10 +190,7 @@ export function StatsTab() {
   const weeklyKmData = buildWeeklyKm(records)
   const selectedStat = distanceStats.find(e => e.id === selectedDistId) ?? distanceStats[0] ?? null
 
-  const hasDistanceData = records.some(r => r.user_distances?.distance_km != null)
-
   const totalRuns = records.length
-  const uniqueCourses = new Set(records.filter(r => r.distance_id).map(r => r.distance_id)).size
   const totalKm = Math.round(
     records.reduce((sum, r) => sum + (r.user_distances?.distance_km ?? 0), 0) * 10
   ) / 10
@@ -203,12 +203,7 @@ export function StatsTab() {
     thisMonthRecords.reduce((sum, r) => sum + (r.user_distances?.distance_km ?? 0), 0) * 10
   ) / 10
 
-  const kpis = [
-    { label: '累計記録数', value: String(totalRuns), unit: '回' },
-    { label: '累計走行距離', value: String(totalKm), unit: 'km' },
-    { label: '今月の走行回数', value: String(thisMonthCount), unit: '回' },
-    { label: '今月の走行距離', value: String(thisMonthKm), unit: 'km' },
-  ]
+  const hasDistanceData = monthlyKmData.length > 0 || weeklyKmData.length > 0
 
   // For the trend chart, pick courses that have enough data
   const trendCandidates = chartMode === 'pace'
@@ -241,9 +236,14 @@ export function StatsTab() {
         </Card>
       ) : (
         <>
-          {/* ── 1. KPI 2×2 グリッド ── */}
+          {/* ── 1. KPI グリッド（記録数・走行距離） ── */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-            {kpis.map(kpi => (
+            {[
+              { label: '累計記録数', value: String(totalRuns), unit: '回' },
+              { label: '累計走行距離', value: String(totalKm), unit: 'km' },
+              { label: '今月の走行回数', value: String(thisMonthCount), unit: '回' },
+              { label: '今月の走行距離', value: String(thisMonthKm), unit: 'km' },
+            ].map(kpi => (
               <div key={kpi.label} style={{
                 background: theme.surface, border: `1px solid ${theme.border}`,
                 borderRadius: 14, padding: 16,
@@ -262,10 +262,10 @@ export function StatsTab() {
           </div>
 
           {/* ── 2. 月間走行距離 ── */}
-          {hasDistanceData && monthlyKmData.length > 0 && (
+          {monthlyKmData.length > 0 ? (
             <Card>
               <SectionHeader title="月間走行距離" />
-              <ResponsiveContainer width="100%" height={110}>
+              <ResponsiveContainer width="100%" height={120}>
                 <BarChart data={monthlyKmData} barSize={28}>
                   <XAxis dataKey="month" tick={{ fill: theme.textDim, fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis hide />
@@ -274,14 +274,21 @@ export function StatsTab() {
                 </BarChart>
               </ResponsiveContainer>
             </Card>
+          ) : hasDistanceData ? null : (
+            <Card>
+              <SectionHeader title="月間走行距離" />
+              <div style={{ color: theme.textDim, fontSize: 13, textAlign: 'center', padding: '16px 0' }}>
+                コースに距離を設定すると走行距離グラフが表示されます
+              </div>
+            </Card>
           )}
 
-          {/* ── 3. 週間走行距離 ── */}
-          {hasDistanceData && weeklyKmData.length > 0 && (
+          {/* ── 3. 週間走行距離（直近12週） ── */}
+          {weeklyKmData.length > 0 && (
             <Card>
-              <SectionHeader title="週間走行距離（直近8週）" />
-              <ResponsiveContainer width="100%" height={110}>
-                <BarChart data={weeklyKmData} barSize={20}>
+              <SectionHeader title="週間走行距離（直近12週）" />
+              <ResponsiveContainer width="100%" height={120}>
+                <BarChart data={weeklyKmData} barSize={18}>
                   <XAxis dataKey="week" tick={{ fill: theme.textDim, fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis hide />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`${v} km`, '走行距離']} />
