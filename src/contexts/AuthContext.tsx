@@ -16,9 +16,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null)
 
 function toEmail(nickname: string) {
-  // ニックネームをURL安全な形式に変換してダミーメールを生成
-  const safe = encodeURIComponent(nickname.trim().toLowerCase()).replace(/%/g, '_')
-  return `${safe}@app.local`
+  // 各文字をコードポイントのhex文字列に変換し、RFC準拠のダミーメールを生成する
+  const hex = Array.from(nickname.trim().toLowerCase())
+    .map(c => c.codePointAt(0)!.toString(16))
+    .join('')
+  return `u${hex}@dummy.runtracker.com`
 }
 
 // Supabase のパスワード最低長（6文字）を満たすため、PIN に固定サフィックスを付与する
