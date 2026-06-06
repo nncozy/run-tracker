@@ -76,7 +76,7 @@ export function LoginScreen() {
       <div style={{
         position: 'absolute', top: -200, left: '50%', transform: 'translateX(-50%)',
         width: 500, height: 500, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(109,40,217,0.35) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(109,40,217,0.14) 0%, transparent 70%)',
         pointerEvents: 'none',
       }} />
 

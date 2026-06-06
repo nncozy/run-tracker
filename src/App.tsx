@@ -114,14 +114,14 @@ function MainApp() {
       <div style={{
         position: 'fixed', top: -100, left: '50%', transform: 'translateX(-50%)',
         width: 300, height: 300, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(109,40,217,0.3) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(109,40,217,0.12) 0%, transparent 70%)',
         pointerEvents: 'none', zIndex: 0,
       }} />
 
       {/* Header */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 10,
-        background: 'rgba(10, 1, 24, 0.85)',
+        background: theme.nav,
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         borderBottom: `1px solid ${theme.border}`,
@@ -169,7 +169,7 @@ function MainApp() {
           <div style={{
             position: 'fixed', top: 65, left: '50%', transform: 'translateX(-50%)',
             width: '100%', maxWidth: 430,
-            background: '#150830',
+            background: theme.dropdown,
             border: `1px solid ${theme.borderBright}`,
             borderTop: 'none',
             zIndex: 16, overflow: 'hidden',
@@ -218,7 +218,7 @@ function MainApp() {
           />
           <div style={{
             position: 'fixed', top: 65, right: 0, left: 'auto',
-            background: '#150830',
+            background: theme.dropdown,
             border: `1px solid ${theme.borderBright}`,
             borderRadius: '0 0 0 12px',
             zIndex: 16, overflow: 'hidden', minWidth: 200,
@@ -255,7 +255,7 @@ function MainApp() {
       <div style={{
         position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
         width: '100%', maxWidth: 430,
-        background: 'rgba(10, 1, 24, 0.92)',
+        background: theme.nav,
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         borderTop: `1px solid ${theme.border}`,

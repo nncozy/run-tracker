@@ -334,14 +334,14 @@ export function RoomTab({ currentRoom, onRoomChange, onRoomsLoaded }: Props) {
         <div
           style={{
             position: 'fixed', inset: 0,
-            background: 'rgba(0,0,0,0.7)',
+            background: theme.overlay,
             display: 'flex', alignItems: 'flex-end', zIndex: 100,
           }}
           onClick={() => setShowCreate(false)}
         >
           <div
             style={{
-              background: '#150830',
+              background: theme.modal,
               border: `1px solid ${theme.border}`,
               borderRadius: '20px 20px 0 0',
               padding: '24px 20px 40px',
@@ -394,14 +394,14 @@ export function RoomTab({ currentRoom, onRoomChange, onRoomsLoaded }: Props) {
         <div
           style={{
             position: 'fixed', inset: 0,
-            background: 'rgba(0,0,0,0.7)',
+            background: theme.overlay,
             display: 'flex', alignItems: 'flex-end', zIndex: 100,
           }}
           onClick={() => setShowJoin(false)}
         >
           <div
             style={{
-              background: '#150830',
+              background: theme.modal,
               border: `1px solid ${theme.border}`,
               borderRadius: '20px 20px 0 0',
               padding: '24px 20px 40px',

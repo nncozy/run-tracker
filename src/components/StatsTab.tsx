@@ -10,7 +10,7 @@ import { formatTime } from '../utils/time'
 import type { RunRecord } from '../types/database'
 
 const tooltipStyle = {
-  background: '#150830',
+  background: theme.surface,
   border: `1px solid ${theme.border}`,
   borderRadius: 8,
   color: theme.text,

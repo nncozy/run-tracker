@@ -109,13 +109,13 @@ function WheelPicker({
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0,
           height: WHEEL_SIDE * WHEEL_ITEM_H,
-          background: 'linear-gradient(to bottom, #150830 20%, rgba(21,8,48,0))',
+          background: 'linear-gradient(to bottom, #fff 20%, rgba(255,255,255,0))',
           pointerEvents: 'none', zIndex: 2,
         }} />
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
           height: WHEEL_SIDE * WHEEL_ITEM_H,
-          background: 'linear-gradient(to top, #150830 20%, rgba(21,8,48,0))',
+          background: 'linear-gradient(to top, #fff 20%, rgba(255,255,255,0))',
           pointerEvents: 'none', zIndex: 2,
         }} />
         <div
@@ -188,7 +188,7 @@ function RecordCard({
       {isPB && (
         <div style={{
           position: 'absolute', top: 0, right: 0,
-          background: `linear-gradient(135deg, ${theme.accentDeep}, ${theme.accent})`,
+          background: `linear-gradient(135deg, ${theme.emphasis}, #F59E0B)`,
           padding: '3px 10px', borderBottomLeftRadius: 10,
           fontSize: 10, color: '#fff', fontWeight: 700,
           fontFamily: "'Barlow Condensed', sans-serif", letterSpacing: '0.05em',
@@ -240,7 +240,7 @@ function RecordCard({
             <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setMenuOpen(false)} />
             <div style={{
               position: 'absolute', right: 0, top: 32,
-              background: '#1a0840', border: `1px solid ${theme.borderBright}`,
+              background: theme.dropdown, border: `1px solid ${theme.borderBright}`,
               borderRadius: 10, overflow: 'hidden', zIndex: 51, minWidth: 100,
             }}>
               <button
@@ -377,12 +377,12 @@ function RecordModal({
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-end', zIndex: 100 }}
+      style={{ position: 'fixed', inset: 0, background: theme.overlay, display: 'flex', alignItems: 'flex-end', zIndex: 100 }}
       onClick={onClose}
     >
       <div
         style={{
-          background: '#150830', border: `1px solid ${theme.border}`,
+          background: theme.modal, border: `1px solid ${theme.border}`,
           borderRadius: '20px 20px 0 0', padding: '24px 20px 40px',
           width: '100%', maxHeight: '92dvh', overflowY: 'auto',
         }}
