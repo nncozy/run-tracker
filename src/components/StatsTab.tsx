@@ -277,7 +277,7 @@ export function StatsTab() {
           )}
 
           {/* ── 3. 週間走行距離 ── */}
-          {hasDistanceData && weeklyKmData.length > 1 && (
+          {hasDistanceData && weeklyKmData.length > 0 && (
             <Card>
               <SectionHeader title="週間走行距離（直近8週）" />
               <ResponsiveContainer width="100%" height={110}>
