@@ -124,54 +124,61 @@ function buildMonthlyActivity(records: RunRecord[]) {
     }))
 }
 
-function buildMonthlyKm(records: RunRecord[]) {
-  // 直近6ヶ月分の連続した月を生成（初期値 0km）
-  const now = new Date()
-  const slots: { key: string; month: string }[] = []
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const month = d.toLocaleDateString('ja', { month: 'short' })
-    slots.push({ key, month })
-  }
-  const map: Record<string, number> = {}
-  slots.forEach(s => { map[s.key] = 0 })
-  records.forEach(r => {
-    const km = r.user_distances?.distance_km
-    if (!km) return
-    const m = r.run_date.slice(0, 7)
-    if (m in map) map[m] = (map[m] ?? 0) + km
-  })
-  return slots.map(s => ({
-    month: s.month,
-    km: Math.round(map[s.key] * 10) / 10,
-  }))
+/** ローカル時刻で月曜0時のDateを返す */
+function getLocalMonday(d: Date): Date {
+  const result = new Date(d)
+  result.setHours(0, 0, 0, 0)
+  const day = result.getDay() // 0=日, 1=月, ..., 6=土
+  result.setDate(result.getDate() - (day === 0 ? 6 : day - 1))
+  return result
 }
 
-function buildWeeklyKm(records: RunRecord[]) {
-  // 直近12週分の月曜日を生成（初期値 0km）
+function buildMonthlyKm(records: RunRecord[]): { month: string; km: number }[] {
   const now = new Date()
-  const thisMonday = toMonday(now)
-  const slots: { key: string; week: string }[] = []
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(thisMonday)
-    d.setDate(d.getDate() - i * 7)
-    const key = d.toISOString().slice(0, 10)
-    const week = d.toLocaleDateString('ja', { month: 'numeric', day: 'numeric' })
-    slots.push({ key, week })
-  }
-  const map: Record<string, number> = {}
-  slots.forEach(s => { map[s.key] = 0 })
+  // 直近6ヶ月のベース配列（常に長さ6・初期値 0km）
+  const base = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+    return {
+      yearMonth: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      month: `${d.getMonth() + 1}月`,
+      km: 0,
+    }
+  })
+  // 実データを該当月に加算
   records.forEach(r => {
     const km = r.user_distances?.distance_km
     if (!km) return
-    const key = toMonday(new Date(r.run_date))
-    if (key in map) map[key] = (map[key] ?? 0) + km
+    const ym = r.run_date.slice(0, 7) // "YYYY-MM"
+    const slot = base.find(s => s.yearMonth === ym)
+    if (slot) slot.km = Math.round((slot.km + km) * 10) / 10
   })
-  return slots.map(s => ({
-    week: s.week,
-    km: Math.round(map[s.key] * 10) / 10,
-  }))
+  return base.map(({ month, km }) => ({ month, km }))
+}
+
+function buildWeeklyKm(records: RunRecord[]): { week: string; km: number }[] {
+  const now = new Date()
+  const thisMonday = getLocalMonday(now)
+  // 直近12週のベース配列（常に長さ12・初期値 0km）
+  const base = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(thisMonday)
+    d.setDate(thisMonday.getDate() - (11 - i) * 7)
+    return {
+      time: d.getTime(), // ローカル月曜0時のms → 一意キー
+      week: `${d.getMonth() + 1}/${d.getDate()}`,
+      km: 0,
+    }
+  })
+  // 実データを該当週に加算
+  records.forEach(r => {
+    const km = r.user_distances?.distance_km
+    if (!km) return
+    // run_date ("YYYY-MM-DD") をローカル時刻として解析
+    const [y, m, day] = r.run_date.split('-').map(Number)
+    const recMonday = getLocalMonday(new Date(y, m - 1, day))
+    const slot = base.find(s => s.time === recMonday.getTime())
+    if (slot) slot.km = Math.round((slot.km + km) * 10) / 10
+  })
+  return base.map(({ week, km }) => ({ week, km }))
 }
 
 // ── component ──────────────────────────────────────────────────────────────
@@ -280,12 +287,12 @@ export function StatsTab() {
           {/* ── 2. 月間走行距離（直近6ヶ月・常時表示） ── */}
           <Card>
             <SectionHeader title="月間走行距離" />
-            <ResponsiveContainer width="100%" height={120}>
-              <BarChart data={monthlyKmData} barSize={28}>
-                <XAxis dataKey="month" tick={{ fill: theme.textDim, fontSize: 11 }} axisLine={false} tickLine={false} />
+            <ResponsiveContainer width="100%" height={130}>
+              <BarChart data={monthlyKmData} barSize={32} margin={{ left: 0, right: 0 }}>
+                <XAxis dataKey="month" tick={{ fill: theme.textDim, fontSize: 11 }} axisLine={false} tickLine={false} interval={0} />
                 <YAxis hide />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`${v} km`, '走行距離']} />
-                <Bar dataKey="km" fill={theme.accent} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="km" fill={theme.accent} radius={[4, 4, 0, 0]} minPointSize={2} />
               </BarChart>
             </ResponsiveContainer>
           </Card>
@@ -293,12 +300,12 @@ export function StatsTab() {
           {/* ── 3. 週間走行距離（直近12週・常時表示） ── */}
           <Card>
             <SectionHeader title="週間走行距離（直近12週）" />
-            <ResponsiveContainer width="100%" height={120}>
-              <BarChart data={weeklyKmData} barSize={18}>
-                <XAxis dataKey="week" tick={{ fill: theme.textDim, fontSize: 10 }} axisLine={false} tickLine={false} />
+            <ResponsiveContainer width="100%" height={130}>
+              <BarChart data={weeklyKmData} barSize={16} margin={{ left: 0, right: 0 }}>
+                <XAxis dataKey="week" tick={{ fill: theme.textDim, fontSize: 9 }} axisLine={false} tickLine={false} interval={0} />
                 <YAxis hide />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`${v} km`, '走行距離']} />
-                <Bar dataKey="km" fill={theme.accentBright} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="km" fill={theme.accentBright} radius={[4, 4, 0, 0]} minPointSize={2} />
               </BarChart>
             </ResponsiveContainer>
           </Card>
