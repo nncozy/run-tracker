@@ -125,37 +125,53 @@ function buildMonthlyActivity(records: RunRecord[]) {
 }
 
 function buildMonthlyKm(records: RunRecord[]) {
+  // 直近6ヶ月分の連続した月を生成（初期値 0km）
+  const now = new Date()
+  const slots: { key: string; month: string }[] = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const month = d.toLocaleDateString('ja', { month: 'short' })
+    slots.push({ key, month })
+  }
   const map: Record<string, number> = {}
+  slots.forEach(s => { map[s.key] = 0 })
   records.forEach(r => {
     const km = r.user_distances?.distance_km
     if (!km) return
     const m = r.run_date.slice(0, 7)
-    map[m] = (map[m] ?? 0) + km
+    if (m in map) map[m] = (map[m] ?? 0) + km
   })
-  return Object.entries(map)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-6)
-    .map(([month, km]) => ({
-      month: new Date(month + '-01').toLocaleDateString('ja', { month: 'short' }),
-      km: Math.round(km * 10) / 10,
-    }))
+  return slots.map(s => ({
+    month: s.month,
+    km: Math.round(map[s.key] * 10) / 10,
+  }))
 }
 
 function buildWeeklyKm(records: RunRecord[]) {
+  // 直近12週分の月曜日を生成（初期値 0km）
+  const now = new Date()
+  const thisMonday = toMonday(now)
+  const slots: { key: string; week: string }[] = []
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(thisMonday)
+    d.setDate(d.getDate() - i * 7)
+    const key = d.toISOString().slice(0, 10)
+    const week = d.toLocaleDateString('ja', { month: 'numeric', day: 'numeric' })
+    slots.push({ key, week })
+  }
   const map: Record<string, number> = {}
+  slots.forEach(s => { map[s.key] = 0 })
   records.forEach(r => {
     const km = r.user_distances?.distance_km
     if (!km) return
     const key = toMonday(new Date(r.run_date))
-    map[key] = (map[key] ?? 0) + km
+    if (key in map) map[key] = (map[key] ?? 0) + km
   })
-  return Object.entries(map)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-12)
-    .map(([date, km]) => ({
-      week: new Date(date).toLocaleDateString('ja', { month: 'numeric', day: 'numeric' }),
-      km: Math.round(km * 10) / 10,
-    }))
+  return slots.map(s => ({
+    week: s.week,
+    km: Math.round(map[s.key] * 10) / 10,
+  }))
 }
 
 // ── component ──────────────────────────────────────────────────────────────
@@ -203,7 +219,7 @@ export function StatsTab() {
     thisMonthRecords.reduce((sum, r) => sum + (r.user_distances?.distance_km ?? 0), 0) * 10
   ) / 10
 
-  const hasDistanceData = monthlyKmData.length > 0 || weeklyKmData.length > 0
+  const hasDistanceData = records.some(r => r.user_distances?.distance_km != null)
 
   // For the trend chart, pick courses that have enough data
   const trendCandidates = chartMode === 'pace'
@@ -261,42 +277,31 @@ export function StatsTab() {
             ))}
           </div>
 
-          {/* ── 2. 月間走行距離 ── */}
-          {monthlyKmData.length > 0 ? (
-            <Card>
-              <SectionHeader title="月間走行距離" />
-              <ResponsiveContainer width="100%" height={120}>
-                <BarChart data={monthlyKmData} barSize={28}>
-                  <XAxis dataKey="month" tick={{ fill: theme.textDim, fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis hide />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`${v} km`, '走行距離']} />
-                  <Bar dataKey="km" fill={theme.accent} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-          ) : hasDistanceData ? null : (
-            <Card>
-              <SectionHeader title="月間走行距離" />
-              <div style={{ color: theme.textDim, fontSize: 13, textAlign: 'center', padding: '16px 0' }}>
-                コースに距離を設定すると走行距離グラフが表示されます
-              </div>
-            </Card>
-          )}
+          {/* ── 2. 月間走行距離（直近6ヶ月・常時表示） ── */}
+          <Card>
+            <SectionHeader title="月間走行距離" />
+            <ResponsiveContainer width="100%" height={120}>
+              <BarChart data={monthlyKmData} barSize={28}>
+                <XAxis dataKey="month" tick={{ fill: theme.textDim, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`${v} km`, '走行距離']} />
+                <Bar dataKey="km" fill={theme.accent} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
 
-          {/* ── 3. 週間走行距離（直近12週） ── */}
-          {weeklyKmData.length > 0 && (
-            <Card>
-              <SectionHeader title="週間走行距離（直近12週）" />
-              <ResponsiveContainer width="100%" height={120}>
-                <BarChart data={weeklyKmData} barSize={18}>
-                  <XAxis dataKey="week" tick={{ fill: theme.textDim, fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis hide />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`${v} km`, '走行距離']} />
-                  <Bar dataKey="km" fill={theme.accentBright} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-          )}
+          {/* ── 3. 週間走行距離（直近12週・常時表示） ── */}
+          <Card>
+            <SectionHeader title="週間走行距離（直近12週）" />
+            <ResponsiveContainer width="100%" height={120}>
+              <BarChart data={weeklyKmData} barSize={18}>
+                <XAxis dataKey="week" tick={{ fill: theme.textDim, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis hide />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => [`${v} km`, '走行距離']} />
+                <Bar dataKey="km" fill={theme.accentBright} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
 
           {/* ── 4. コース別 PR・記録数・ペース ── */}
           <Card>
