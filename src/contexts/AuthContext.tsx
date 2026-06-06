@@ -21,6 +21,11 @@ function toEmail(nickname: string) {
   return `${safe}@app.local`
 }
 
+// Supabase のパスワード最低長（6文字）を満たすため、PIN に固定サフィックスを付与する
+function toPassword(pin: string) {
+  return `${pin}__rt`
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -71,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { error } = await supabase.auth.signUp({
       email: toEmail(nick),
-      password: pin,
+      password: toPassword(pin),
       options: {
         data: { display_name: nick },
       },
@@ -83,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function signIn(nickname: string, pin: string) {
     const { error } = await supabase.auth.signInWithPassword({
       email: toEmail(nickname.trim()),
-      password: pin,
+      password: toPassword(pin),
     })
     if (error) throw error
   }
