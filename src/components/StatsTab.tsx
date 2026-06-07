@@ -289,19 +289,17 @@ export function StatsTab() {
             <SectionHeader title="月間走行距離" />
             <ResponsiveContainer width="100%" height={140}>
               <BarChart
-                data={monthlyKmData.map(d => ({ ...d, _bar: Math.max(d.km, 0.01) }))}
+                data={monthlyKmData}
                 barSize={32}
                 margin={{ left: 4, right: 4, top: 4 }}
               >
                 <XAxis dataKey="month" tick={{ fill: theme.textDim, fontSize: 11 }} axisLine={false} tickLine={false} interval={0} />
-                <YAxis hide domain={[0, 'auto']} />
+                <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax, 1)]} />
                 <Tooltip
                   contentStyle={tooltipStyle}
-                  formatter={(_v: unknown, _n: unknown, props: { payload?: { km?: number } }) =>
-                    [`${props.payload?.km ?? 0} km`, '走行距離']
-                  }
+                  formatter={(v: unknown) => [`${v} km`, '走行距離']}
                 />
-                <Bar dataKey="_bar" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="km" minPointSize={3} radius={[4, 4, 0, 0]}>
                   {monthlyKmData.map((entry, i) => (
                     <Cell key={i} fill={entry.km > 0 ? theme.accent : theme.border} />
                   ))}
@@ -315,7 +313,7 @@ export function StatsTab() {
             <SectionHeader title="週間走行距離（直近12週）" />
             <ResponsiveContainer width="100%" height={150}>
               <BarChart
-                data={weeklyKmData.map(d => ({ ...d, _bar: Math.max(d.km, 0.01) }))}
+                data={weeklyKmData}
                 barSize={16}
                 margin={{ left: 4, right: 4, top: 4, bottom: 20 }}
               >
@@ -329,14 +327,12 @@ export function StatsTab() {
                   textAnchor="end"
                   height={40}
                 />
-                <YAxis hide domain={[0, 'auto']} />
+                <YAxis hide domain={[0, (dataMax: number) => Math.max(dataMax, 1)]} />
                 <Tooltip
                   contentStyle={tooltipStyle}
-                  formatter={(_v: unknown, _n: unknown, props: { payload?: { km?: number } }) =>
-                    [`${props.payload?.km ?? 0} km`, '走行距離']
-                  }
+                  formatter={(v: unknown) => [`${v} km`, '走行距離']}
                 />
-                <Bar dataKey="_bar" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="km" minPointSize={3} radius={[4, 4, 0, 0]}>
                   {weeklyKmData.map((entry, i) => (
                     <Cell key={i} fill={entry.km > 0 ? theme.accentBright : theme.border} />
                   ))}
